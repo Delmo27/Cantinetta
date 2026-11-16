@@ -148,7 +148,7 @@ nav button.on{color:var(--gold)}
 
 <script>
 /* ============ DATI INIZIALI ============ */
-const SEED_SHELVES = [{n:1,cap:12,rows:2},{n:2,cap:12,rows:2},{n:3,cap:12,rows:2},{n:4,cap:12,rows:2},{n:5,cap:12,rows:2},{n:6,cap:6,rows:1}];
+const SEED_SHELVES = [{n:1,p:6,r:6},{n:2,p:6,r:6},{n:3,p:6,r:0},{n:4,p:6,r:6},{n:5,p:6,r:6},{n:6,p:3,r:3}];
 
 /* ============ UTILITA ============ */
 const $ = s => document.querySelector(s);
@@ -235,7 +235,7 @@ function deriveEvents(old, nw) {
     if (nw.stato === 'In cantina') logEv(nw, 'rimessa', nw.piano ? slotLabel(nw.piano, nw.posto) : '');
     else logEv(nw, { 'Bevuta':'bevuta', 'Regalata':'regalata', 'Persa/Difettosa':'persa' }[nw.stato] || 'bevuta', [nw.dataConsumo ? fmtDate(nw.dataConsumo) : '', nw.voto != null ? 'voto ' + nw.voto + '/10' : '', nw.note || ''].filter(Boolean).join(' · '));
   } else if (nw.stato === 'In cantina' && nw.piano && (old.piano !== nw.piano || old.posto !== nw.posto)) {
-    logEv(nw, 'spostata', (old.piano ? slotShort(old.piano, old.posto) : 'senza posto') + ' → ' + slotShort(nw.piano, nw.posto));
+    logEv(nw, 'spostata', (old.piano && shelf(old.piano) && old.posto <= capOf(shelf(old.piano)) ? slotShort(old.piano, old.posto) : 'senza posto') + ' → ' + slotShort(nw.piano, nw.posto));
   }
 }
 function save() {
@@ -261,7 +261,7 @@ function save() {
 function startCloud() {
   stopCloud();
   let gotB = false, gotS = false, lastSig = '';
-  const ready = () => { if (gotB && gotS && !loaded) { loaded = true; render(); } };
+  const ready = () => { if (gotB && gotS && !loaded) { loaded = true; render(); if (!localStorage.getItem('cantinetta_cfg2')) { localStorage.setItem('cantinetta_cfg2', '1'); setTimeout(() => openShelves(true), 400); } } };
   unsub = Cloud.subscribe({
     onBottles(list, meta) {
       syncInfo = meta || syncInfo;
@@ -271,7 +271,7 @@ function startCloud() {
       if (!loaded) ready(); else if (changed) renderIfIdle(); else renderHeader();
     },
     onShelves(list) {
-      if (list) { const ch = sj(list) !== sj(S.shelves); S.shelves = list; syncedShelves = sj(list); gotS = true; if (loaded && ch) renderIfIdle(); }
+      if (list) { list = normSh(list); const ch = sj(list) !== sj(S.shelves); S.shelves = list; syncedShelves = sj(list); gotS = true; if (loaded && ch) renderIfIdle(); }
       else { syncedShelves = ''; gotS = true; }
       ready();
     },
@@ -317,32 +317,28 @@ function mat(b) {
 }
 const byFine = (a, b) => (a.fine || 9999) - (b.fine || 9999) || (a.inizio || 0) - (b.inizio || 0);
 const shelf = n => S.shelves.find(s => s.n === n);
-const colsOf = sh => Math.ceil(sh.cap / sh.rows);
-function rc(sh, p) { const c = colsOf(sh); return { row: Math.floor((p - 1) / c), col: (p - 1) % c }; }
-function rowName(sh, r) { if (sh.rows === 1) return ''; if (sh.rows === 2) return r === 0 ? 'davanti' : 'dietro'; return 'fila ' + (r + 1); }
+const capOf = sh => (sh.p || 0) + (sh.r || 0);
+const normSh = list => list.map(s => { if (s.p !== undefined) return { n: s.n, p: +s.p || 0, r: +s.r || 0 }; const rows = s.rows || 1, cap = s.cap || 0; if (rows >= 2) { const c = Math.ceil(cap / rows); return { n: s.n, p: c, r: cap - c }; } return { n: s.n, p: cap, r: 0 }; });
+const ROWN = { P: 'fondo verso la porta', R: 'fondo verso il retro' };
+function posInfo(sh, posto) { return posto <= sh.p ? { row: 'P', n: posto } : { row: 'R', n: posto - sh.p }; }
 function shelfName(n) { return 'Ripiano ' + n + (n === 1 ? ' (alto)' : (n === S.shelves.length && n === 6 ? ' (a terra)' : '')); }
-function slotLabel(piano, posto) {
-  const sh = shelf(piano); if (!sh) return 'Posizione non valida';
-  const { row, col } = rc(sh, posto); const rn = rowName(sh, row);
-  return shelfName(piano) + ' · ' + (rn ? rn + ' · ' : '') + (col + 1) + 'ª da sinistra';
-}
-function slotShort(piano, posto) {
-  const sh = shelf(piano); if (!sh) return '?'; const { row } = rc(sh, posto); const rn = rowName(sh, row);
-  return 'Rip. ' + piano + (rn ? ' · ' + rn : '');
-}
+function slotCode(piano, posto) { const sh = shelf(piano); if (!sh) return '?'; const i = posInfo(sh, posto); return piano + i.row + i.n; }
+function slotLabel(piano, posto) { const sh = shelf(piano); if (!sh) return 'Posizione non valida'; const i = posInfo(sh, posto); return shelfName(piano) + ' · ' + ROWN[i.row] + ' · ' + i.n + 'ª da sinistra'; }
+function slotShort(piano, posto) { const sh = shelf(piano); if (!sh) return '?'; const i = posInfo(sh, posto); return 'Rip. ' + piano + ' · ' + i.row + i.n; }
+function orientHint(b) { const sh = shelf(b.piano), i = posInfo(sh, b.posto); return 'Codice <b>' + slotCode(b.piano, b.posto) + '</b> · ' + (i.row === 'P' ? 'dallo sportello vedi il fondo della bottiglia' : 'dallo sportello vedi il collo della bottiglia'); }
 function occupancy() {
   const occ = {}, dup = [];
   inC().forEach(b => { if (b.piano && b.posto) { const k = b.piano + '-' + b.posto; if (!occ[k]) occ[k] = b; else dup.push(b); } });
   return { occ, dup };
 }
-function validSlot(b) { const sh = b.piano && shelf(b.piano); return !!(sh && b.posto >= 1 && b.posto <= sh.cap); }
+function validSlot(b) { const sh = b.piano && shelf(b.piano); return !!(sh && b.posto >= 1 && b.posto <= capOf(sh)); }
 function unplaced() {
   const { occ } = occupancy();
   return inC().filter(b => !b.piano || !b.posto || !validSlot(b) || occ[b.piano + '-' + b.posto] !== b);
 }
 function freeSlots() {
   const { occ } = occupancy(), out = [];
-  S.shelves.forEach(sh => { for (let p = 1; p <= sh.cap; p++) if (!occ[sh.n + '-' + p]) out.push({ piano: sh.n, posto: p }); });
+  S.shelves.forEach(sh => { for (let p = 1; p <= capOf(sh); p++) if (!occ[sh.n + '-' + p]) out.push({ piano: sh.n, posto: p }); });
   return out;
 }
 function suggestSlot(tipo) {
@@ -353,12 +349,7 @@ function suggestSlot(tipo) {
   for (const n of pref) { const f = free.find(s => s.piano === n); if (f) return f; }
   return free[0];
 }
-function blockers(b) {
-  if (!validSlot(b)) return [];
-  const sh = shelf(b.piano), c = colsOf(sh), { row } = rc(sh, b.posto), { occ } = occupancy(), out = [];
-  for (let k = 1; k <= row; k++) { const o = occ[b.piano + '-' + (b.posto - c * k)]; if (o) out.push(o); }
-  return out;
-}
+function blockers() { return []; }
 
 /* ============ ABBINAMENTI ============ */
 const TAGS = ['Aperitivo','Pesce','Crostacei e crudo','Fritto','Salumi','Formaggi','Pasta e risotti','Verdure','Carni bianche','Carne rossa','Brasati e selvaggina','Piccante e asiatico'];
@@ -408,7 +399,7 @@ function serveTemp(b) {
 }
 
 /* ============ UI STATE ============ */
-const UI = { tab:'stasera', occ:'Quotidiana', pTipo:'Qualsiasi', dish:'Nessuno', offset:0, q:'', fType:'Tutti', fMat:'Tutti', sort:'urgenza', gone:false, mapMode:'tipo', mapQ:'', moving:null };
+const UI = { tab:'stasera', occ:'Quotidiana', pTipo:'Qualsiasi', dish:'Nessuno', offset:0, q:'', fType:'Tutti', fMat:'Tutti', sort:'urgenza', gone:false, mapMode:'tipo', mapView:'alto', mapShelf:1, mapQ:'', moving:null };
 
 function colorOf(b) {
   const m = UI.mapMode;
@@ -443,7 +434,6 @@ function recommend() {
     if (UI.occ === 'Cena tra amici') { if (pr >= 20 && pr <= 60) s += 15; if (pr > 90) s -= 15; }
     if (UI.occ === 'Romantica') { if (isBolle(b.tipo)) { s += 20; why.push('Bollicine: festa a due'); } if (pr >= 40) s += 10; }
     if (UI.occ === 'Speciale') { if (pr >= 60) { s += 40; why.push('Bottiglia importante'); } else if (pr < 30) s -= 20; if (m === 'Attendere') return; }
-    const bl = blockers(b); if (!bl.length) s += 8; else s -= 8;
     out.push({ b, s, why, tags });
   });
   return out.sort((a, c) => c.s - a.s);
@@ -451,7 +441,7 @@ function recommend() {
 
 /* ============ VISTE ============ */
 function renderHeader() {
-  const n = alertsData().total, c = inC().length, cap = S.shelves.reduce((a, s) => a + s.cap, 0);
+  const n = alertsData().total, c = inC().length, cap = S.shelves.reduce((a, s) => a + capOf(s), 0);
   $('#hdr').innerHTML = `<div class="brand">${ic('glass', 30)}<div><h1>La mia cantinetta</h1><p>${c} bottiglie · ${cap - c >= 0 ? (cap - c) + ' posti liberi' : 'sopra capacità'}${navigator.onLine === false ? ' · offline' : ''}</p></div></div>
   <button class="bell" data-act="tab" data-v="avvisi" aria-label="Avvisi">${ic('bell', 26)}${n ? `<b>${n}</b>` : ''}</button>`;
   try { if (navigator.setAppBadge) (n ? navigator.setAppBadge(n) : navigator.clearAppBadge()); } catch (e) {}
@@ -479,7 +469,6 @@ function viewStasera() {
   <div class="sec"><h2>Te ne propongo ${picks.length}</h2><small>${list.length} candidate</small></div>
   ${picks.length ? picks.map(r => `<div class="rec" data-act="open" data-id="${r.b.id}"><div class="t"><div><h3>${esc(title(r.b))}</h3><div class="sub">${esc(r.b.produttore)} · ${vint(r.b)}</div></div>${badge(mat(r.b))}</div>
     <div class="pin">${ic('pin', 18)}<span>${validSlot(r.b) ? esc(slotLabel(r.b.piano, r.b.posto)) : 'Posizione non assegnata'}</span></div>
-    ${blockers(r.b).length ? `<div class="sub" style="margin-top:6px">Davanti c'è: ${esc(blockers(r.b).map(title).join(', '))}</div>` : ''}
     <div class="why">${r.why.map(w => `<span>${esc(w)}</span>`).join('')}${r.tags.slice(0, 3).map(t => `<span class="p">${esc(t)}</span>`).join('')}</div></div>`).join('') : '<div class="empty">Nessuna bottiglia adatta con questi filtri. Prova ad allargarli.</div>'}
   ${list.length > 3 ? `<button class="btn sec2" data-act="more">Altre proposte</button>` : ''}
   <div class="sec"><h2>Le prossime da bere</h2><small>per fine finestra</small></div>
@@ -512,28 +501,123 @@ function viewCerca() {
   <div class="sub" id="cnt"></div><div id="res"></div>`;
 }
 
+const DEP = 6.8, BL = { L: 4.0, Lb: 2.4, Ls: 0.6, w: 0.46, nw: 0.14 };
+function shelfW(sh) { const both = sh.p > 0 && sh.r > 0; return both ? Math.max(sh.p, sh.r + 0.5) : Math.max(sh.p, sh.r, 1); }
+function shelfX(sh, row, n) { const both = sh.p > 0 && sh.r > 0; return row === 'P' ? n - 0.5 : (both ? n : n - 0.5); }
+function slotsOf(sh) { const o = []; for (let n = 1; n <= sh.p; n++) o.push({ row: 'P', n, posto: n }); for (let n = 1; n <= sh.r; n++) o.push({ row: 'R', n, posto: sh.p + n }); return o; }
+function bottlePath(cx, yb, dir) {
+  const { L, Lb, Ls, w, nw } = BL, Y = t => (yb + dir * t).toFixed(3), X = d => (cx + d).toFixed(3);
+  return `M${X(-w)} ${Y(0.14)}Q${X(-w)} ${Y(0)} ${X(-w + 0.14)} ${Y(0)}L${X(w - 0.14)} ${Y(0)}Q${X(w)} ${Y(0)} ${X(w)} ${Y(0.14)}L${X(w)} ${Y(Lb)}C${X(w)} ${Y(Lb + 0.4)} ${X(nw)} ${Y(Lb + 0.2)} ${X(nw)} ${Y(Lb + Ls)}L${X(nw)} ${Y(L)}L${X(-nw)} ${Y(L)}L${X(-nw)} ${Y(Lb + Ls)}C${X(-nw)} ${Y(Lb + 0.2)} ${X(-w)} ${Y(Lb + 0.4)} ${X(-w)} ${Y(Lb)}Z`;
+}
 function renderCab() {
-  const { occ } = occupancy(); const q = UI.mapQ.trim(); let hits = 0;
-  const html = S.shelves.map(sh => {
-    const c = colsOf(sh); let used = 0; for (let p = 1; p <= sh.cap; p++) if (occ[sh.n + '-' + p]) used++;
-    let rowsH = '';
-    for (let r = sh.rows - 1; r >= 0; r--) { // dietro in alto, davanti in basso
-      let cells = '';
-      for (let k = 0; k < c; k++) {
-        const p = r * c + k + 1; if (p > sh.cap) { cells += '<span></span>'; continue; }
-        const b = occ[sh.n + '-' + p];
-        if (!b) { cells += `<button class="slot e" data-act="slot" data-s="${sh.n}" data-p="${p}" aria-label="Posto libero"></button>`; continue; }
-        const fill = colorOf(b), ring = UI.mapMode === 'mat' ? fill : MAT[mat(b)].bg;
-        const hit = q && matches(b, q); if (hit) hits++;
-        const dim = q && !hit;
-        cells += `<button class="slot b ${dim ? 'dim' : ''} ${hit ? 'hit' : ''} ${UI.moving === b.id ? 'mv' : ''}" data-act="slot" data-s="${sh.n}" data-p="${p}" style="--c:${fill};--r:${ring};color:${ink(fill)}"><i>${b.annata ? "'" + String(b.annata).slice(-2) : 'NV'}</i></button>`;
-      }
-      rowsH += `<div class="sr"><span class="rl">${rowName(sh, r)}</span><div class="sg" style="grid-template-columns:repeat(${c},1fr)">${cells}</div></div>`;
+  const q = UI.mapQ.trim(), all = inC(); let hits = 0; const hitsBy = {};
+  if (q) all.forEach(b => { if (matches(b, q)) { hits++; hitsBy[b.piano] = (hitsBy[b.piano] || 0) + 1; } });
+  const h = $('#hits'); if (h) h.textContent = q ? (hits ? hits + (hits === 1 ? ' bottiglia evidenziata' : ' bottiglie evidenziate') : 'Nessuna trovata') : '';
+  if (UI.mapView === '3d') { const cv = $('#cv3'); if (cv) { bind3D(cv); draw3D(); } return; }
+  if (!shelf(UI.mapShelf)) UI.mapShelf = S.shelves[0] ? S.shelves[0].n : 1;
+  const { occ } = occupancy(), sh = shelf(UI.mapShelf);
+  $('#shsel').innerHTML = `<div class="chips">${S.shelves.map(s => { const used = slotsOf(s).filter(x => occ[s.n + '-' + x.posto]).length; return `<button class="chip ${s.n === sh.n ? 'on' : ''}" data-act="shelfsel" data-v="${s.n}">Rip. ${s.n} · ${used}/${capOf(s)}${hitsBy[s.n] ? ' ●' + hitsBy[s.n] : ''}</button>`; }).join('')}</div>`;
+  const W = shelfW(sh); let o = `<svg viewBox="-0.35 -1.15 ${(W + 0.7).toFixed(2)} ${(DEP + 2.5).toFixed(2)}" width="100%" style="display:block;font-family:inherit">`;
+  o += `<rect x="-0.2" y="-0.05" width="${W + 0.4}" height="${DEP + 0.1}" rx=".25" fill="#241c17" stroke="#4a3b30" stroke-width=".06"/>`;
+  o += `<rect x="-0.2" y="${DEP + 0.08}" width="${W + 0.4}" height=".09" rx=".04" fill="#c9a96e" opacity=".55"/>`;
+  o += `<text x="${W / 2}" y="-0.82" font-size=".4" fill="#6f6359" text-anchor="middle" letter-spacing=".12">RETRO</text><text x="${W / 2}" y="${DEP + 1.2}" font-size=".4" fill="#c9a96e" text-anchor="middle" letter-spacing=".12" opacity=".8">SPORTELLO</text>`;
+  slotsOf(sh).forEach(sl => {
+    const x = shelfX(sh, sl.row, sl.n), yb = sl.row === 'P' ? DEP : 0, dir = sl.row === 'P' ? -1 : 1, d = bottlePath(x, yb, dir), b = occ[sh.n + '-' + sl.posto];
+    const ny = sl.row === 'P' ? DEP + 0.72 : -0.3, attr = `data-act="slot" data-s="${sh.n}" data-p="${sl.posto}" style="cursor:pointer`;
+    if (!b) {
+      o += `<path d="${d}" fill="${UI.moving ? '#c9a96e22' : '#ffffff05'}" stroke="${UI.moving ? '#c9a96e' : '#5a4a3d'}" stroke-width=".05" stroke-dasharray=".14 .1" ${attr}"/>`;
+      o += `<text x="${x}" y="${ny}" font-size=".34" fill="#6f6359" text-anchor="middle" pointer-events="none">${sl.row}${sl.n}</text>`;
+    } else {
+      const fill = colorOf(b), ring = UI.mapMode === 'mat' ? shade(fill, -0.35) : MAT[mat(b)].bg, hit = q && matches(b, q), dim = q && !hit, mv = UI.moving === b.id;
+      o += `<path d="${d}" fill="${fill}" stroke="${mv ? '#fff' : hit ? '#fff' : ring}" stroke-width="${mv || hit ? '.13' : '.08'}" ${attr};${dim ? 'opacity:.18;' : ''}${hit ? 'filter:drop-shadow(0 0 5px #c9a96e);' : ''}"/>`;
+      o += `<text x="${x}" y="${(yb + dir * 1.0).toFixed(2)}" font-size=".36" font-weight="700" fill="${ink(fill)}" text-anchor="middle" dominant-baseline="middle" pointer-events="none" ${dim ? 'opacity=".25"' : ''}>${b.annata ? "'" + String(b.annata).slice(-2) : 'NV'}</text>`;
+      o += `<text x="${x}" y="${ny}" font-size=".34" fill="${hit ? '#c9a96e' : '#a89b8d'}" font-weight="${hit ? 700 : 400}" text-anchor="middle" pointer-events="none">${sl.row}${sl.n}</text>`;
     }
-    return `<div class="shelf"><div class="shl"><b>${shelfName(sh.n)}</b><span>${used} / ${sh.cap}</span></div>${rowsH}<div class="board"></div></div>`;
-  }).join('');
-  $('#cab').innerHTML = html;
-  $('#hits').textContent = q ? (hits ? hits + (hits === 1 ? ' bottiglia evidenziata' : ' bottiglie evidenziate') : 'Nessuna trovata') : '';
+  });
+  $('#cab').innerHTML = o + '</svg>';
+}
+
+/* ---- 3D ---- */
+const V3 = { yaw: 0.5, pitch: 0.42, zoom: 1, hit: [] }, GAP3 = 2.4;
+let raf3 = 0; const schedule3D = () => { if (!raf3) raf3 = requestAnimationFrame(() => { raf3 = 0; draw3D(); }); };
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+function shade(hex, f) { let h = hex.replace('#', ''); if (h.length === 3) h = h.split('').map(c => c + c).join(''); const n = parseInt(h, 16); let r = n >> 16, g = (n >> 8) & 255, b = n & 255; const tg = f < 0 ? 0 : 255, a = Math.abs(f); return `rgb(${Math.round(r + (tg - r) * a)},${Math.round(g + (tg - g) * a)},${Math.round(b + (tg - b) * a)})`; }
+function draw3D() {
+  const cv = $('#cv3'); if (!cv || !loaded) return;
+  const rc0 = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1), W = Math.round(rc0.width) || 340, H = Math.round(rc0.height) || 460;
+  if (cv.width !== W * dpr || cv.height !== H * dpr) { cv.width = W * dpr; cv.height = H * dpr; }
+  const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
+  const N = S.shelves.length, Wc = Math.max(6.5, ...S.shelves.map(shelfW)), cy = N * GAP3 / 2, cz = DEP / 2, q = UI.mapQ.trim();
+  const cyw = Math.cos(V3.yaw), syw = Math.sin(V3.yaw), cp = Math.cos(V3.pitch), sp = Math.sin(V3.pitch), dist = 30, f = dist * Math.min(H / (N * GAP3 + 3.6), W / 10.5) * V3.zoom;
+  const P = (x, y, z) => { y -= cy; z -= cz; const x1 = x * cyw + z * syw, z1 = -x * syw + z * cyw, y2 = y * cp - z1 * sp, z2 = y * sp + z1 * cp, d = dist - z2, s = f / d; return { X: W / 2 + x1 * s, Y: H / 2 - y2 * s, d, s }; };
+  const quad = (pts, fill, stroke) => { ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p.X, p.Y) : ctx.moveTo(p.X, p.Y)); ctx.closePath(); if (fill) { ctx.fillStyle = fill; ctx.fill(); } if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1; ctx.stroke(); } };
+  const hw = Wc / 2 + 0.25, top = N * GAP3 + 0.2;
+  quad([P(-hw, -0.2, 0), P(hw, -0.2, 0), P(hw, top, 0), P(-hw, top, 0)], 'rgba(34,27,23,.95)', 'rgba(90,70,55,.6)');
+  quad([P(-hw, -0.2, 0), P(-hw, -0.2, DEP), P(-hw, top, DEP), P(-hw, top, 0)], 'rgba(60,46,36,.22)', 'rgba(90,70,55,.5)');
+  quad([P(hw, -0.2, 0), P(hw, -0.2, DEP), P(hw, top, DEP), P(hw, top, 0)], 'rgba(60,46,36,.22)', 'rgba(90,70,55,.5)');
+  V3.hit = [];
+  const groups = S.shelves.map(sh => ({ sh, d: P(0, (N - sh.n) * GAP3, cz).d })).sort((a, b) => b.d - a.d), { occ } = occupancy();
+  groups.forEach(({ sh }) => {
+    const yb = (N - sh.n) * GAP3, ox = -shelfW(sh) / 2;
+    quad([P(-Wc / 2, yb, 0), P(Wc / 2, yb, 0), P(Wc / 2, yb, DEP), P(-Wc / 2, yb, DEP)], 'rgba(140,104,70,.5)', 'rgba(205,165,115,.55)');
+    quad([P(-Wc / 2, yb, DEP), P(Wc / 2, yb, DEP), P(Wc / 2, yb - 0.16, DEP), P(-Wc / 2, yb - 0.16, DEP)], 'rgba(110,78,50,.95)', null);
+    const items = [];
+    slotsOf(sh).forEach(sl => {
+      const b = occ[sh.n + '-' + sl.posto]; if (!b) return;
+      const x = ox + shelfX(sh, sl.row, sl.n), y = yb + BL.w + 0.02, base = sl.row === 'P' ? DEP - 0.15 : 0.15, dr = sl.row === 'P' ? -1 : 1;
+      const A = [0, BL.Lb, BL.Lb + BL.Ls, BL.L].map(t => P(x, y, base + dr * t));
+      items.push({ b, A, d: (A[0].d + A[3].d) / 2 });
+    });
+    items.sort((a, c) => c.d - a.d).forEach(it => {
+      const hit = q && matches(it.b, q), dim = q && !hit;
+      drawBottle3(ctx, it.A, colorOf(it.b), dim ? .18 : 1, hit);
+      V3.hit.push({ id: it.b.id, a: it.A[0], z: it.A[3], r: BL.w * it.A[0].s, d: it.d });
+    });
+  });
+  S.shelves.forEach(sh => { const lp = P(-Wc / 2 - 0.55, (N - sh.n) * GAP3 + 0.2, DEP); ctx.fillStyle = '#c9a96e'; ctx.font = '600 13px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(String(sh.n), lp.X, lp.Y); });
+  const dp = P(0, -0.2, DEP + 0.5); ctx.fillStyle = 'rgba(201,169,110,.7)'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('SPORTELLO', dp.X, dp.Y + 12);
+}
+function drawBottle3(ctx, A, col, alpha, hl) {
+  const [a0, a1, a2, a3] = A, dx = a3.X - a0.X, dy = a3.Y - a0.Y, L = Math.hypot(dx, dy), r0 = BL.w * a0.s, r1 = BL.w * a1.s, r2 = BL.nw * a2.s, r3 = BL.nw * a3.s;
+  ctx.save(); ctx.globalAlpha = alpha; if (hl) { ctx.shadowColor = '#fff'; ctx.shadowBlur = 16; }
+  const near = a0.d <= a3.d ? a0 : a3, rn = near === a0 ? r0 : r3;
+  if (L < r0 * 1.7) {
+    const Wd = [BL.w, BL.w, BL.nw, BL.nw], T = [0, BL.Lb, BL.Lb + BL.Ls, BL.L], pts = [];
+    for (let k = 0; k <= 16; k++) { const tt = BL.L * k / 16, i = tt <= T[1] ? 0 : tt <= T[2] ? 1 : 2, u = (tt - T[i]) / (T[i + 1] - T[i]), a = A[i], b = A[i + 1]; pts.push({ X: a.X + (b.X - a.X) * u, Y: a.Y + (b.Y - a.Y) * u, d: a.d + (b.d - a.d) * u, s: a.s + (b.s - a.s) * u, w: Wd[i] + (Wd[i + 1] - Wd[i]) * u }); }
+    pts.sort((p, q) => q.d - p.d).forEach(p => { const r = p.w * p.s, g = ctx.createRadialGradient(p.X - r * .3, p.Y - r * .3, r * .1, p.X, p.Y, r); g.addColorStop(0, shade(col, .3)); g.addColorStop(1, shade(col, -.45)); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.X, p.Y, r, 0, 7); ctx.fill(); });
+    ctx.restore(); return;
+  }
+  const ux = dx / L, uy = dy / L, nx = -uy, ny = ux, pt = (a, r, s) => [a.X + nx * r * s, a.Y + ny * r * s], seg = Math.hypot(a2.X - a1.X, a2.Y - a1.Y) * 0.7;
+  const p0 = pt(a0, r0, 1), p1 = pt(a1, r1, 1), p2 = pt(a2, r2, 1), p3 = pt(a3, r3, 1), q0 = pt(a0, r0, -1), q1 = pt(a1, r1, -1), q2 = pt(a2, r2, -1), q3 = pt(a3, r3, -1);
+  ctx.beginPath(); ctx.moveTo(...p0); ctx.lineTo(...p1); ctx.quadraticCurveTo(p1[0] + ux * seg, p1[1] + uy * seg, ...p2); ctx.lineTo(...p3); ctx.lineTo(...q3); ctx.lineTo(...q2);
+  ctx.quadraticCurveTo(q1[0] + ux * seg, q1[1] + uy * seg, ...q1); ctx.lineTo(...q0); ctx.quadraticCurveTo(a0.X - ux * r0 * 1.25, a0.Y - uy * r0 * 1.25, ...p0); ctx.closePath();
+  const g = ctx.createLinearGradient(a0.X - nx * r0, a0.Y - ny * r0, a0.X + nx * r0, a0.Y + ny * r0);
+  g.addColorStop(0, shade(col, -.5)); g.addColorStop(.35, shade(col, .22)); g.addColorStop(.6, shade(col, 0)); g.addColorStop(1, shade(col, -.55));
+  ctx.fillStyle = g; ctx.fill(); ctx.shadowBlur = 0; ctx.strokeStyle = hl ? '#fff' : 'rgba(0,0,0,.55)'; ctx.lineWidth = hl ? 1.6 : 0.8; ctx.stroke();
+  if (a0.d < a3.d) { const ratio = clamp(1 - L / (3.2 * a0.s), .2, 1); ctx.beginPath(); ctx.ellipse(a0.X, a0.Y, r0, r0 * ratio, Math.atan2(ny, nx), 0, 7); ctx.fillStyle = shade(col, .12); ctx.fill(); ctx.strokeStyle = 'rgba(0,0,0,.5)'; ctx.stroke(); }
+  ctx.restore();
+}
+function tap3D(e, cv) {
+  const r = cv.getBoundingClientRect(), X = e.clientX - r.left, Y = e.clientY - r.top; let best = null;
+  V3.hit.forEach(h => {
+    const vx = h.z.X - h.a.X, vy = h.z.Y - h.a.Y, l2 = vx * vx + vy * vy || 1, t = clamp(((X - h.a.X) * vx + (Y - h.a.Y) * vy) / l2, 0, 1), d = Math.hypot(X - (h.a.X + vx * t), Y - (h.a.Y + vy * t));
+    if (d <= h.r + 5 && (!best || h.d < best.d)) best = h;
+  });
+  if (best) openBottle(best.id);
+}
+function bind3D(cv) {
+  if (cv._b) return; cv._b = true;
+  const ptrs = new Map(); let moved = 0, pinch = 0;
+  cv.addEventListener('pointerdown', e => { try { cv.setPointerCapture(e.pointerId); } catch (x) {} ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); moved = 0; if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch = Math.hypot(a.x - b.x, a.y - b.y); } });
+  cv.addEventListener('pointermove', e => {
+    const p = ptrs.get(e.pointerId); if (!p) return; const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
+    if (ptrs.size === 1) { moved += Math.abs(dx) + Math.abs(dy); V3.yaw = clamp(V3.yaw + dx * .008, -1.25, 1.25); V3.pitch = clamp(V3.pitch + dy * .006, -.05, 1.45); }
+    else if (ptrs.size === 2) { moved = 99; const [a, b] = [...ptrs.values()], d = Math.hypot(a.x - b.x, a.y - b.y); if (pinch) V3.zoom = clamp(V3.zoom * d / pinch, .6, 2.4); pinch = d; }
+    schedule3D();
+  });
+  const up = e => { const p = ptrs.get(e.pointerId), tap = ptrs.size === 1 && moved < 8 && e.type === 'pointerup' && p; ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = 0; if (tap) tap3D(e, cv); };
+  cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+  cv.addEventListener('wheel', e => { e.preventDefault(); V3.zoom = clamp(V3.zoom * (e.deltaY < 0 ? 1.1 : .9), .6, 2.4); schedule3D(); }, { passive: false });
 }
 function legendHtml() {
   const c = inC(); let items = [];
@@ -544,16 +628,18 @@ function legendHtml() {
   return items.map(i => `<span><u style="background:${i[0]}"></u>${esc(i[1])}</span>`).join('') + (UI.mapMode !== 'mat' ? '<span><u style="border:3px solid #888;background:none"></u>bordo = maturità</span>' : '');
 }
 function viewMappa() {
-  const mv = UI.moving && getB(UI.moving);
-  const un = unplaced();
+  const mv = UI.moving && getB(UI.moving), un = unplaced(), alto = UI.mapView !== '3d';
   return `${mv ? `<div class="banner"><span>Tocca il nuovo posto per <b>${esc(title(mv))}</b></span><button data-act="cancelMove">Annulla</button></div>` : ''}
   <input data-bind="mapQ" placeholder="Evidenzia: Barolo, Borgogna, Chardonnay…" value="${esc(UI.mapQ)}" autocomplete="off">
   <div class="sub" id="hits" style="margin:6px 2px 2px;color:var(--gold)"></div>
-  ${chips('mapMode', ['Tipo','Maturità','Paese','Prezzo'].map(x => x), { tipo:'Tipo', mat:'Maturità', paese:'Paese', prezzo:'Prezzo' }[UI.mapMode]).replace(/data-act="set" data-k="mapMode"/g, 'data-act="mode"')}
-  <div class="cab ${mv ? 'moving' : ''}" id="cab"></div>
+  ${chips('mapView', ['Dall\'alto', '3D'], alto ? 'Dall\'alto' : '3D').replace(/data-act="set" data-k="mapView"/g, 'data-act="mview"')}
+  ${chips('mapMode', ['Tipo','Maturità','Paese','Prezzo'], { tipo:'Tipo', mat:'Maturità', paese:'Paese', prezzo:'Prezzo' }[UI.mapMode]).replace(/data-act="set" data-k="mapMode"/g, 'data-act="mode"')}
+  ${alto ? `<div id="shsel"></div><div class="cab ${mv ? 'moving' : ''}" id="cab"></div>`
+    : `<div id="cab"><canvas id="cv3" style="width:100%;height:520px;display:block;touch-action:none;border-radius:16px;background:radial-gradient(#201915,#120f0d);border:2px solid #3b2f27"></canvas></div>
+       <div class="btns" style="grid-template-columns:repeat(3,1fr);margin-top:10px"><button class="btn sec2" data-act="v3" data-v="front">Frontale</button><button class="btn sec2" data-act="v3" data-v="tq">3/4</button><button class="btn sec2" data-act="v3" data-v="side">Di lato</button></div>`}
   <div class="legend" id="leg">${legendHtml()}</div>
-  <div class="note">In alto c'è la fila più <b>in fondo</b>, in basso quella <b>davanti</b>. Tocca una bottiglia per la scheda, un posto vuoto per aggiungerne una.</div>
-  ${un.length ? `<div class="sec"><h2>Da riposizionare</h2><small>${un.length}</small></div><div class="card" style="padding:4px 12px">${un.map(rowHtml).join('')}</div>` : ''}`;
+  <div class="note">${alto ? '<b>P</b> = fondo verso la porta, <b>R</b> = fondo verso il retro. I numeri crescono da sinistra a destra, guardando dallo sportello. Tocca una bottiglia per la scheda, un posto vuoto per aggiungerne una.' : 'Trascina per ruotare, pizzica per ingrandire, tocca una bottiglia per aprirla. Per spostare una bottiglia usa la vista «Dall\'alto».'}</div>
+  ${un.length ? `<div class="sec"><h2>Da riposizionare</h2><small>${un.length}</small></div><div class="sub" style="margin:-4px 0 6px">Apri la bottiglia e tocca «Sposta» per assegnarle un posto.</div><div class="card" style="padding:4px 12px">${un.map(rowHtml).join('')}</div>` : ''}`;
 }
 
 /* ============ STATISTICHE ============ */
@@ -583,7 +669,7 @@ function viewStats() {
   const vit = {}; c.forEach(b => (b.vitigni || '').split(',').map(s => s.trim()).filter(Boolean).forEach(v => { const k = v.charAt(0).toUpperCase() + v.slice(1).toLowerCase(); vit[k] = (vit[k] || 0) + 1; }));
   const vitTop = Object.entries(vit).sort((a, b) => b[1] - a[1]).slice(0, 8);
   const prod = countBy(c, b => b.produttore).filter(x => x[1] >= 2).slice(0, 6);
-  const shelves = S.shelves.map(sh => ({ l: 'Ripiano ' + sh.n, v: c.filter(b => b.piano === sh.n).length, cap: sh.cap }));
+  const shelves = S.shelves.map(sh => ({ l: 'Ripiano ' + sh.n, v: c.filter(b => b.piano === sh.n).length, cap: capOf(sh) }));
   const pronte = c.filter(b => ['Pronto','Al meglio','Da bere presto','Oltre finestra'].includes(mat(b))).length;
   const care = c.filter(b => b.prezzo).sort((a, b) => b.prezzo - a.prezzo)[0];
   return `<div class="kpis"><div class="kpi"><b>${c.length}</b><small>bottiglie in cantina</small></div><div class="kpi"><b>${eur(tot)}</b><small>valore stimato (prezzo d'acquisto)</small></div>
@@ -669,7 +755,7 @@ function openBottleBase(id) {
   ${b.vitigni ? `<div class="sub">${esc(b.vitigni)}</div>` : ''}
   ${inCel ? windowBar(b) : ''}
   ${inCel ? `<div class="card" style="margin:14px 0"><div class="pin" style="margin:0">${ic('pin', 20)}<b>${validSlot(b) ? esc(slotLabel(b.piano, b.posto)) : 'Posizione non assegnata'}</b></div>
-    ${bl.length ? `<div class="sub" style="margin-top:8px">Per prenderla devi spostare: <b>${esc(bl.map(title).join(', '))}</b></div>` : (validSlot(b) ? '<div class="sub" style="margin-top:8px">Accessibile, nessuna bottiglia davanti.</div>' : '')}
+    ${validSlot(b) ? `<div class="sub" style="margin-top:8px">${orientHint(b)}</div>` : ''}
     <div class="btns"><button class="btn sec2" data-act="showmap" data-id="${id}">Mostra in mappa</button><button class="btn sec2" data-act="sposta" data-id="${id}">Sposta</button></div></div>` : ''}
   <div class="kv"><div><small>Prezzo</small>${b.prezzo ? eur(b.prezzo) : '—'}</div><div><small>Servizio</small>${serveTemp(b)}</div>
   ${isBolle(b.tipo) ? `<div><small>Sboccatura</small>${b.sboccatura ? fmtMonth(b.sboccatura) : '<span style="color:var(--warn)">da inserire</span>'}</div>` : ''}
@@ -766,14 +852,15 @@ function slotTap(s, p) {
   }
   if (b) openBottle(b.id); else openForm(null, { piano: s, posto: p });
 }
-function openShelves() {
-  openSheet(`<h2>Ripiani e file</h2><div class="note" style="margin:8px 0 14px">Imposta quanti posti ha ogni ripiano e se è a una o due file. Con due file i primi posti sono quelli davanti. Se cambi le file, i posti si ridistribuiscono: controlla la mappa.</div><form id="shf">
-  ${S.shelves.map(s => `<div class="g2" style="margin-bottom:10px"><div class="field" style="margin:0"><label>${shelfName(s.n)} · posti</label><input name="cap${s.n}" type="number" min="0" max="30" value="${s.cap}"></div><div class="field" style="margin:0"><label>File</label><select name="rows${s.n}">${[1, 2, 3].map(r => `<option ${r === s.rows ? 'selected' : ''}>${r}</option>`).join('')}</select></div></div>`).join('')}
+function openShelves(first) {
+  const g = s => first ? (s.n === 3 ? { p: 6, r: 0 } : s.n === 6 ? { p: 3, r: 3 } : s) : s;
+  openSheet(`<h2>Ripiani e file</h2><div class="note" style="margin:8px 0 14px">${first ? '<b>Nuova mappa.</b> Ho precompilato i numeri in base a quanto mi hai detto (ripiano 3 a una fila, gli altri a due): <b>controllali e correggili</b>. ' : ''}Per ogni ripiano indica quante bottiglie ci stanno in ciascuna fila. <b>P</b> = fila col fondo verso la porta, <b>R</b> = fila col fondo verso il retro. Se il ripiano ha una sola fila, metti 0 nell'altra. Le bottiglie che non trovano più posto finiscono in «Da riposizionare», non si cancellano.</div><form id="shf">
+  ${S.shelves.map(s => { const v = g(s); return `<div class="g2" style="margin-bottom:10px"><div class="field" style="margin:0"><label>${shelfName(s.n)} · fila P</label><input name="p${s.n}" type="number" inputmode="numeric" min="0" max="20" value="${v.p}"></div><div class="field" style="margin:0"><label>fila R</label><input name="r${s.n}" type="number" inputmode="numeric" min="0" max="20" value="${v.r}"></div></div>`; }).join('')}
   <button type="button" class="btn" data-act="saveShelves">Salva</button></form>`);
 }
 function saveShelves() {
-  const f = new FormData($('#shf'));
-  S.shelves.forEach(s => { s.cap = Math.max(0, Math.min(30, parseInt(f.get('cap' + s.n)) || 0)); s.rows = parseInt(f.get('rows' + s.n)) || 1; });
+  const f = new FormData($('#shf')), n = k => Math.max(0, Math.min(20, parseInt(f.get(k)) || 0));
+  S.shelves = S.shelves.map(s => ({ n: s.n, p: n('p' + s.n), r: n('r' + s.n) }));
   save(); closeSheet(); toast('Ripiani aggiornati'); render();
 }
 async function doExport() {
@@ -788,7 +875,7 @@ async function doImport(file) {
   if (!confirm('Importare ' + st.bottles.length + ' bottiglie? Sostituiscono i dati attuali.')) return;
   suppressEvents = true;
   try {
-    S.bottles = st.bottles.map(clean); S.shelves = clean(st.shelves);
+    S.bottles = st.bottles.map(clean); S.shelves = normSh(clean(st.shelves));
     for (const [id, p] of Object.entries(st.photos || {})) { const b = getB(id); if (!b || !p) continue; Cloud.setPhoto(id, p).catch(onErr); try { b.thumb = await shrink(p, 110, .7); } catch (e) {} }
     save();
   } finally { suppressEvents = false; }
@@ -818,9 +905,12 @@ const ACT = {
   rimetti: el => rimetti(el.dataset.id),
   saveForm: el => saveForm(el.dataset.id),
   delBottle: el => { if (confirm('Eliminare questa bottiglia dai dati? Non si può annullare.')) { S.bottles = S.bottles.filter(b => b.id !== el.dataset.id); save(); closeSheet(); toast('Eliminata'); render(); } },
-  sposta: el => { UI.moving = el.dataset.id; UI.tab = 'mappa'; closeSheet(); render(); },
+  sposta: el => { const b = getB(el.dataset.id); UI.moving = el.dataset.id; UI.tab = 'mappa'; UI.mapView = 'alto'; if (b && validSlot(b)) UI.mapShelf = b.piano; closeSheet(); render(); },
+  mview: el => { UI.mapView = el.dataset.v === '3D' ? '3d' : 'alto'; render(); },
+  shelfsel: el => { UI.mapShelf = +el.dataset.v; render(); },
+  v3: el => { const v = el.dataset.v; V3.yaw = v === 'tq' ? .5 : 0; V3.pitch = v === 'front' ? .06 : v === 'side' ? .12 : .42; if (v === 'side') V3.yaw = 1.2; V3.zoom = 1; schedule3D(); },
   cancelMove: () => { UI.moving = null; render(); },
-  showmap: el => { const b = getB(el.dataset.id); UI.mapQ = title(b) + ' ' + (b.annata || ''); UI.tab = 'mappa'; closeSheet(); render(); },
+  showmap: el => { const b = getB(el.dataset.id); UI.mapQ = title(b) + ' ' + (b.annata || ''); if (validSlot(b)) UI.mapShelf = b.piano; UI.tab = 'mappa'; closeSheet(); render(); },
   slot: el => slotTap(+el.dataset.s, +el.dataset.p),
   foto: el => { fotoFor = el.dataset.id; $('#fileFoto').click(); },
   storico: () => { UI.tab = 'storico'; render(); },
@@ -831,6 +921,7 @@ const ACT = {
 
 function render() {
   renderHeader(); renderNav();
+  { const fb = document.querySelector('.fab'); if (fb) fb.style.display = (UI.tab === 'mappa' && UI.mapView === '3d') ? 'none' : ''; }
   if (!loaded) { $('#view').innerHTML = '<div class="empty">Carico la cantina…</div>'; return; }
   const T = UI.tab;
   $('#view').innerHTML = (!S.bottles.length && ['stasera','cerca','mappa','stats'].includes(T)) ? emptyHtml() : T === 'stasera' ? viewStasera() : T === 'cerca' ? viewCerca() : T === 'mappa' ? viewMappa() : T === 'stats' ? viewStats() : T === 'avvisi' ? viewAvvisi() : T === 'storico' ? viewStorico() : viewAltro();
@@ -855,7 +946,7 @@ function bindEvents() {
     else if (k === 'ftipo') { const sel = $('#posSel'); if (sel && sel.dataset.new) { const s = suggestSlot(e.target.value); if (s) sel.value = s.piano + '-' + s.posto; } }
   });
   document.addEventListener('submit', e => { if (e.target.id === 'lf') { e.preventDefault(); doLogin(); } });
-  window.addEventListener('online', () => renderHeader()); window.addEventListener('offline', () => renderHeader());
+  window.addEventListener('resize', () => { if (UI.tab === 'mappa' && UI.mapView === '3d') schedule3D(); }); window.addEventListener('online', () => renderHeader()); window.addEventListener('offline', () => renderHeader());
   $('#fileFoto').addEventListener('change', async e => { const f = e.target.files[0], b = fotoFor && getB(fotoFor); if (f && b) { try { await setPhotoFor(b, f); save(); toast('Foto salvata'); openBottle(b.id); render(); } catch (x) { toast('Foto non letta'); } } e.target.value = ''; });
   $('#fileImp').addEventListener('change', async e => { const f = e.target.files[0]; if (f) await doImport(f); e.target.value = ''; });
 }
