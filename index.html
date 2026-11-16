@@ -123,10 +123,31 @@ nav button.on{color:var(--gold)}
 .ins{background:#2a2118;border-left:3px solid var(--gold);padding:10px 12px;border-radius:0 10px 10px 0;font-size:13.5px;margin:10px 0;line-height:1.45}
 .ok{color:var(--ok);font-size:14px;padding:8px 2px}
 .menu .row{padding:15px 4px}
-#toast{position:fixed;left:50%;bottom:calc(100px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#e8d9b5;color:#1a1410;padding:10px 16px;border-radius:12px;font-weight:600;z-index:80;opacity:0;pointer-events:none;transition:opacity .25s;max-width:90%;text-align:center}
+#toast{position:fixed;left:50%;top:calc(16px + env(safe-area-inset-top));transform:translateX(-50%);background:#e8d9b5;color:#1a1410;padding:10px 16px;border-radius:12px;font-weight:600;z-index:80;opacity:0;pointer-events:none;transition:opacity .25s;max-width:90%;text-align:center}
 #toast.on{opacity:1}
 .empty{color:var(--mut);text-align:center;padding:30px 10px}
 .clk{cursor:pointer}
+.poschip{display:inline-block;min-height:28px;line-height:18px;padding:5px 10px;border:1px dashed var(--gold);border-radius:10px;color:var(--gold);font-size:12px;font-weight:600;background:#c9a96e14}
+.poschip:active{opacity:.6}
+.fillbar{position:sticky;top:62px;z-index:12;background:var(--bg);padding:4px 0 10px;margin:0 -16px;padding-left:16px;padding-right:16px;border-bottom:1px solid var(--line)}
+.fs{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;border:2px solid transparent;flex:none}
+.fs.e{border:1.5px dashed #5a4a3d;color:#6f6359}
+.fs.t{border:2px solid var(--gold);color:var(--gold);box-shadow:0 0 10px #c9a96e66;background:#c9a96e18}
+.fs.b{border-color:#0005}
+.fsl{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10px;color:var(--mut)}
+.stpb{width:46px;height:40px;border-radius:12px;background:var(--card2);border:1px solid var(--line);font-size:22px;line-height:1;color:var(--gold)}
+.stpb:active{opacity:.6}
+details.gd{background:var(--card);border:1px solid var(--line);border-radius:14px;margin-bottom:10px}
+details.gd summary{padding:14px;font-family:Georgia,"Times New Roman",serif;font-size:17px;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:10px}
+details.gd summary::-webkit-details-marker{display:none}
+details.gd summary:after{content:"+";color:var(--gold);font-size:22px;font-family:-apple-system,"Segoe UI",sans-serif}
+details.gd[open] summary:after{content:"\2212"}
+.gdb{padding:0 14px 14px;color:var(--txt);line-height:1.6;font-size:14px}
+.gdb p{margin:8px 0}
+.gdb ul,.gdb ol{margin:6px 0;padding-left:20px}
+.gdb li{margin:5px 0}
+.gdb .k{display:inline-block;padding:1px 8px;border-radius:8px;background:var(--card2);border:1px solid var(--line);font-size:12.5px;color:var(--gold);font-weight:600;white-space:nowrap}
+.dot{display:inline-block;width:14px;height:14px;border-radius:50%;margin-right:7px;flex:none;box-sizing:border-box}
 .bar.clk:active,.cols div.clk:active,.kpi.clk:active,.legend span.clk:active{opacity:.55}
 .legend span.clk{padding:4px 0}
 a.btn{text-decoration:none}
@@ -154,7 +175,7 @@ details.rsd summary{cursor:pointer;color:var(--gold);font-weight:600}
 
 <script>
 /* ============ DATI INIZIALI ============ */
-const SEED_SHELVES = [{n:1,lv:[{p:3,r:3},{p:3,r:3}]},{n:2,lv:[{p:3,r:3},{p:3,r:3}]},{n:3,lv:[{p:3,r:0},{p:3,r:0}]},{n:4,lv:[{p:3,r:3},{p:3,r:3}]},{n:5,lv:[{p:3,r:3},{p:3,r:3}]},{n:6,lv:[{p:3,r:3}]}];
+const SEED_SHELVES = [{n:1,lv:[{p:4,r:4},{p:4,r:4}]},{n:2,lv:[{p:4,r:4},{p:4,r:4}]},{n:3,lv:[{p:4,r:0},{p:4,r:0}]},{n:4,lv:[{p:4,r:4},{p:4,r:4}]},{n:5,lv:[{p:4,r:4},{p:4,r:4}]},{n:6,lv:[{p:4,r:4}]}];
 
 /* ============ UTILITA ============ */
 const $ = s => document.querySelector(s);
@@ -432,7 +453,7 @@ function serveTemp(b) {
 }
 
 /* ============ UI STATE ============ */
-const UI = { mapLv:'A', mapIds:null, mapTitle:'', fromList:false, listCtx:null, tab:'stasera', occ:'Quotidiana', pTipo:'Qualsiasi', dish:'Nessuno', offset:0, q:'', fType:'Tutti', fMat:'Tutti', sort:'urgenza', gone:false, mapMode:'tipo', mapView:'alto', mapShelf:1, mapQ:'', moving:null };
+const UI = { fPos:'Tutte', fq:'', fillT:'Tutti', fill:null, fillCursor:null, mapLv:'A', mapIds:null, mapTitle:'', fromList:false, listCtx:null, tab:'stasera', occ:'Quotidiana', pTipo:'Qualsiasi', dish:'Nessuno', offset:0, q:'', fType:'Tutti', fMat:'Tutti', sort:'urgenza', gone:false, mapMode:'tipo', mapView:'alto', mapShelf:1, mapQ:'', moving:null };
 
 function colorOf(b) {
   const m = UI.mapMode;
@@ -482,7 +503,7 @@ function renderHeader() {
 }
 function renderNav() {
   const T = [['stasera','Stasera','glass'],['cerca','Cerca','search'],['mappa','Mappa','map'],['stats','Statistiche','chart'],['altro','Altro','menu']];
-  $('#nav').innerHTML = T.map(t => `<button class="${UI.tab === t[0] ? 'on' : ''}" data-act="tab" data-v="${t[0]}">${ic(t[2])}<span>${t[1]}</span></button>`).join('');
+  $('#nav').innerHTML = T.map(t => `<button class="${(UI.tab === t[0] || (t[0] === 'altro' && ['guida', 'storico', 'riordino'].includes(UI.tab))) ? 'on' : ''}" data-act="tab" data-v="${t[0]}">${ic(t[2])}<span>${t[1]}</span></button>`).join('');
 }
 function chips(k, opts, cur) { return `<div class="chips">${opts.map(o => `<button class="chip ${o === cur ? 'on' : ''}" data-act="set" data-k="${k}" data-v="${esc(o)}">${esc(o)}</button>`).join('')}</div>`; }
 function thumb(b) {
@@ -506,30 +527,38 @@ function viewStasera() {
     <div class="why">${r.why.map(w => `<span>${esc(w)}</span>`).join('')}${r.tags.slice(0, 3).map(t => `<span class="p">${esc(t)}</span>`).join('')}</div></div>`).join('') : '<div class="empty">Nessuna bottiglia adatta con questi filtri. Prova ad allargarli.</div>'}
   ${list.length > 3 ? `<button class="btn sec2" data-act="more">Altre proposte</button>` : ''}
   <div class="sec"><h2>Le prossime da bere</h2><small>per fine finestra</small></div>
-  <div class="card" style="padding:4px 12px">${soon.map(rowHtml).join('')}</div>`;
+  <div class="card" style="padding:4px 12px">${soon.map(b => rowHtml(b)).join('')}</div>`;
 }
-function rowHtml(b, act) {
-  return `<div class="row" data-act="${act || 'open'}" data-id="${b.id}">${thumb(b)}<div class="m"><b>${esc(title(b))}</b><span>${esc(b.produttore)} · ${vint(b)}${b.regione ? ' · ' + esc(b.regione) : ''}</span></div><div class="r">${b.stato === 'In cantina' ? badge(mat(b)) : `<span class="bd" style="background:#333">${esc(b.stato)}</span>`}<span>${esc(locText(b))}</span></div></div>`;
+function rowHtml(b, act, edit) {
+  return `<div class="row" data-act="${act || 'open'}" data-id="${b.id}">${thumb(b)}<div class="m"><b>${esc(title(b))}</b><span>${esc(b.produttore)} · ${vint(b)}${b.regione ? ' · ' + esc(b.regione) : ''}</span></div><div class="r">${b.stato === 'In cantina' ? badge(mat(b)) : `<span class="bd" style="background:#333">${esc(b.stato)}</span>`}${edit && b.stato === 'In cantina' ? `<span class="poschip" data-act="editpos" data-id="${b.id}">${esc(locText(b))}</span>` : `<span>${esc(locText(b))}</span>`}</div></div>`;
 }
 
 function filterList() {
   let l = UI.gone ? S.bottles.slice() : inC();
   if (UI.fType !== 'Tutti') l = l.filter(b => UI.fType === 'Bollicine' ? isBolle(b.tipo) : b.tipo === UI.fType);
   if (UI.fMat !== 'Tutti') l = l.filter(b => mat(b) === UI.fMat);
+  if (UI.fPos === 'Senza posto') { const u = new Set(unplaced().map(b => b.id)); l = l.filter(b => u.has(b.id)); }
   if (UI.q.trim()) l = l.filter(b => matches(b, UI.q));
   const s = UI.sort;
   l.sort((a, b) => s === 'nome' ? title(a).localeCompare(title(b)) : s === 'annata' ? (a.annata || 0) - (b.annata || 0) : s === 'prezzo' ? (b.prezzo || 0) - (a.prezzo || 0) : s === 'posizione' ? (a.piano || 99) - (b.piano || 99) || String(a.liv || '').localeCompare(String(b.liv || '')) || String(a.fila || '').localeCompare(String(b.fila || '')) || (a.pos || 99) - (b.pos || 99) : byFine(a, b));
   return l;
 }
 function renderRes() {
-  const l = filterList();
-  $('#res').innerHTML = (l.length ? l.map(rowHtml).join('') : '<div class="empty">Nessun risultato</div>');
-  $('#cnt').textContent = l.length + (l.length === 1 ? ' bottiglia' : ' bottiglie');
+  const l = filterList(); let h = '', last = null;
+  l.forEach(b => {
+    if (UI.sort === 'posizione') {
+      const g = b.stato !== 'In cantina' ? 'Fuori cantina' : validSlot(b) ? shelfName(b.piano) + (shelf(b.piano).lv.length > 1 ? ' · livello ' + LVN[b.liv] : '') + ' · fila ' + FILAN[b.fila] : 'Senza posto';
+      if (g !== last) { h += `<div class="lbl" style="margin:16px 0 2px;color:var(--gold)">${esc(g)}</div>`; last = g; }
+    }
+    h += rowHtml(b, null, true);
+  });
+  $('#res').innerHTML = l.length ? h : '<div class="empty">Nessun risultato</div>';
+  $('#cnt').textContent = l.length + (l.length === 1 ? ' bottiglia' : ' bottiglie') + (UI.sort === 'posizione' ? '' : ' · tocca il codice dorato per cambiare posizione');
 }
 function viewCerca() {
   const types = ['Tutti'].concat(['Rosso','Bianco','Bollicine','Rosato','Dolce/Passito'].filter(t => S.bottles.some(b => (t === 'Bollicine' ? isBolle(b.tipo) : b.tipo === t) && (UI.gone || b.stato === 'In cantina'))));
   return `<input data-bind="q" placeholder="Cerca per nome, produttore, regione, vitigno…" value="${esc(UI.q)}" autocomplete="off">
-  <div style="height:8px"></div>${chips('fType', types, UI.fType)}${chips('fMat', ['Tutti','Oltre finestra','Da bere presto','Al meglio','Pronto','Attendere'], UI.fMat)}
+  <div style="height:8px"></div>${chips('fType', types, UI.fType)}${chips('fMat', ['Tutti','Oltre finestra','Da bere presto','Al meglio','Pronto','Attendere'], UI.fMat)}${unplaced().length ? chips('fPos', ['Tutte', 'Senza posto'], UI.fPos) : ''}
   <div class="g2" style="margin:2px 0 8px"><select data-bind="sort"><option value="urgenza">Ordina: da bere prima</option><option value="nome">Ordina: nome</option><option value="annata">Ordina: annata</option><option value="prezzo">Ordina: prezzo</option><option value="posizione">Ordina: posizione</option></select>
   <label style="display:flex;align-items:center;gap:8px;color:var(--mut);font-size:13px"><input type="checkbox" data-bind="gone" ${UI.gone ? 'checked' : ''} style="width:20px;height:20px">Includi bevute</label></div>
   <div class="sub" id="cnt"></div><div id="res"></div>`;
@@ -574,6 +603,11 @@ function renderCab() {
     }
   });
   $('#cab').innerHTML = o + '</svg>';
+  const cc = $('#capctl');
+  if (cc) {
+    const lv0 = sh.lv[LV.indexOf(UI.mapLv)], stp = (f, lab) => { const k = f === 'P' ? 'p' : 'r'; return `<div class="card" style="padding:10px"><div class="sub" style="margin:0 0 8px">Fila ${f} · ${lab}</div><div style="display:flex;align-items:center;justify-content:space-between"><button class="stpb" data-act="cap" data-f="${f}" data-d="-1" aria-label="Togli un posto">−</button><b style="font-size:21px">${lv0[k]}</b><button class="stpb" data-act="cap" data-f="${f}" data-d="1" aria-label="Aggiungi un posto">+</button></div></div>`; };
+    cc.innerHTML = `<div class="lbl">Posti in questo livello</div><div class="g2">${stp('R', 'fondo al retro')}${stp('P', 'fondo allo sportello')}</div><div class="note" style="margin-top:6px">I posti variano da ripiano a ripiano e da bottiglia a bottiglia: regolali con − e + in base a quante ne ci stanno davvero.</div>`;
+  }
 }
 
 /* ---- 3D ---- */
@@ -673,12 +707,12 @@ function viewMappa() {
   <div class="sub" id="hits" style="margin:6px 2px 2px;color:var(--gold)"></div>
   ${chips('mapView', ['Dall\'alto', '3D'], alto ? 'Dall\'alto' : '3D').replace(/data-act="set" data-k="mapView"/g, 'data-act="mview"')}
   ${chips('mapMode', ['Tipo','Maturità','Paese','Prezzo'], { tipo:'Tipo', mat:'Maturità', paese:'Paese', prezzo:'Prezzo' }[UI.mapMode]).replace(/data-act="set" data-k="mapMode"/g, 'data-act="mode"')}
-  ${alto ? `<div id="shsel"></div><div class="cab ${mv ? 'moving' : ''}" id="cab"></div>`
+  ${alto ? `<div id="shsel"></div><div class="cab ${mv ? 'moving' : ''}" id="cab"></div><div id="capctl"></div>`
     : `<div id="cab"><canvas id="cv3" style="width:100%;height:520px;display:block;touch-action:none;border-radius:16px;background:radial-gradient(#201915,#120f0d);border:2px solid #3b2f27"></canvas></div>
        <div class="btns" style="grid-template-columns:repeat(3,1fr);margin-top:10px"><button class="btn sec2" data-act="v3" data-v="front">Frontale</button><button class="btn sec2" data-act="v3" data-v="tq">3/4</button><button class="btn sec2" data-act="v3" data-v="side">Di lato</button></div>`}
   <div class="legend" id="leg">${legendHtml()}</div>
-  <div class="note">${alto ? '<b>Codice</b> = ripiano + livello (<b>B</b> basso, <b>A</b> alto) + fila (<b>P</b> fondo verso lo sportello, <b>R</b> fondo verso il retro) + numero da sinistra, guardando dallo sportello. Esempio: <b>4A-P3</b>. Tocca una bottiglia per la scheda, un posto vuoto per aggiungerne una.' : 'Trascina per ruotare, pizzica per ingrandire, tocca una bottiglia per aprirla. Per spostare una bottiglia usa la vista «Dall\'alto».'}</div>
-  ${un.length ? `<div class="sec"><h2>Da riposizionare</h2><small>${un.length}</small></div><div class="sub" style="margin:-4px 0 6px">Apri la bottiglia e tocca «Sposta» per assegnarle un posto.</div><div class="card" style="padding:4px 12px">${un.map(b => rowHtml(b)).join('')}</div>` : ''}`;
+  <div class="note">${alto ? '<b>Codice</b> = ripiano + livello (<b>B</b> basso, <b>A</b> alto) + fila (<b>P</b> fondo verso lo sportello, <b>R</b> fondo verso il retro) + numero da sinistra, guardando dallo sportello. Esempio: <b>4A-P3</b>. Tocca una bottiglia per la scheda, un posto vuoto per aggiungerne una. <span class="clk" data-act="guida" style="color:var(--gold);text-decoration:underline">Legenda completa nella Guida</span>.' : 'Trascina per ruotare, pizzica per ingrandire, tocca una bottiglia per aprirla. Per spostare una bottiglia usa la vista «Dall\'alto».'}</div>
+  ${un.length ? `<div class="sec"><h2>Da riposizionare</h2><small>${un.length}</small></div><div class="sub" style="margin:-4px 0 6px">Apri la bottiglia e tocca «Sposta» per assegnarle un posto.</div><div class="card" style="padding:4px 12px">${un.map(b => rowHtml(b, null, true)).join('')}</div>` : ''}`;
 }
 
 /* ============ STATISTICHE ============ */
@@ -783,16 +817,107 @@ function viewAvvisi() {
 function extraRow(b, k) { return `<div class="row" data-act="open" data-id="${b.id}">${thumb(b)}<div class="m"><b>${esc(title(b))}</b><span>${esc(b.produttore)} · ${vint(b)}</span></div><div class="r"><span class="bd" style="background:${MAT['Attendere'].bg};color:${MAT['Attendere'].fg}">dal ${b.inizio}</span></div></div>`; }
 
 /* ============ ALTRO ============ */
+/* ============ GUIDA ============ */
+function guideMap() {
+  const bp = (x, y, dir, fill, hl) => `<path d="${bottlePath(x, y, dir)}" fill="${fill}" stroke="${hl ? '#fff' : '#d9c9a3'}" stroke-width="${hl ? .12 : .06}"/>`;
+  let o = `<svg viewBox="-0.3 -1.4 3.6 ${(DEP + 2.9).toFixed(1)}" style="width:100%;max-width:170px;display:block;margin:10px auto" font-family="inherit">`;
+  o += `<rect x="-0.2" y="-0.05" width="3.4" height="${DEP + 0.1}" rx=".2" fill="#241c17" stroke="#4a3b30" stroke-width=".06"/>`;
+  [1, 2].forEach(n => { o += bp(n, 0, 1, '#6d2d3a') + `<text x="${n}" y="-0.3" font-size=".36" fill="#a89b8d" text-anchor="middle">R${n}</text>`; });
+  [0.5, 1.5, 2.5].forEach((x, i) => { o += bp(x, DEP, -1, '#9b2335', i === 2) + `<text x="${x}" y="${DEP + 0.72}" font-size=".36" fill="${i === 2 ? '#c9a96e' : '#a89b8d'}" font-weight="${i === 2 ? 700 : 400}" text-anchor="middle">P${i + 1}</text>`; });
+  return o + `<text x="1.5" y="-0.95" font-size=".4" fill="#6f6359" text-anchor="middle" letter-spacing=".12">RETRO</text><text x="1.5" y="${DEP + 1.35}" font-size=".4" fill="#c9a96e" text-anchor="middle" letter-spacing=".12">SPORTELLO</text></svg>`;
+}
+function viewGuida() {
+  const dot = (c, t) => `<span style="display:inline-flex;align-items:center;margin:3px 14px 3px 0"><span class="dot" style="background:${c}"></span>${esc(t)}</span>`;
+  const ring = (c, t) => `<span style="display:inline-flex;align-items:center;margin:3px 14px 3px 0"><span class="dot" style="border:3px solid ${c}"></span>${esc(t)}</span>`;
+  const D = (ti, b, open) => `<details class="gd" ${open ? 'open' : ''}><summary>${ti}</summary><div class="gdb">${b}</div></details>`;
+  const K = x => `<span class="k">${x}</span>`;
+  const MD = { 'Attendere': 'prima dell\'inizio della finestra: aspetta', 'Pronto': 'finestra iniziata, primo quarto: si può bere', 'Al meglio': 'parte centrale della finestra: il momento migliore', 'Da bere presto': 'ultimo quarto o ultimo anno: da programmare', 'Oltre finestra': 'finestra superata: da bere quanto prima', 'Finestra mancante': 'anni non indicati: compilali nella scheda' };
+  return `<div class="sec" style="margin-top:4px"><h2>Guida</h2></div>
+  <div class="note" style="margin-bottom:12px">Tocca un argomento per aprirlo.</div>
+  ${D('A cosa serve', `<p>Tiene traccia di ogni bottiglia dall'acquisto alla stappata: <b>dove si trova</b>, <b>quando è il momento giusto</b> per berla e <b>cosa aprire</b> stasera. I dati sono nel tuo database e si sincronizzano tra i dispositivi.</p>`, true)}
+  ${D('Le cinque schede', `<ul>
+    <li><b>Stasera</b>: scegli occasione, tipo e cosa mangi. Ti propone 3 bottiglie con la posizione e i motivi; «Altre proposte» ne mostra di diverse.</li>
+    <li><b>Cerca</b>: ricerca libera per nome, produttore, regione, vitigno. Filtri per tipo e maturità, ordinamenti, «Includi bevute».</li>
+    <li><b>Mappa</b>: la cantinetta, in due viste: <i>Dall'alto</i> (un ripiano alla volta) e <i>3D</i> (tutta la cantinetta, si ruota col dito).</li>
+    <li><b>Statistiche</b>: tocca un numero, una barra o una colonna per vedere le bottiglie; da lì puoi evidenziarle in mappa.</li>
+    <li><b>Altro</b>: aggiungi una bottiglia, storico, ripiani, backup, guida, esci.</li></ul>
+    <p>La <b>campana</b> in alto mostra gli avvisi: oltre finestra, da bere presto, senza finestra e senza posizione. Si aggiorna quando apri l'app.</p>`)}
+  ${D('La vita di una bottiglia', `<ol>
+    <li><b>Acquisto</b>: tasto ${K('+')} in basso a destra. Compili i dati, scegli il posto (ti suggerisco uno) e salvi. La data di acquisto è quella di oggi, se non la cambi.</li>
+    <li><b>In cantina</b>: dalla scheda puoi spostarla (${K('Sposta')}), modificarla, aggiungere la foto dell'etichetta.</li>
+    <li><b>Stappata</b>: ${K("L'abbiamo stappata")}, voto da 0 a 10, note, conferma. Il posto si libera da solo. Se per arrivarci hai dovuto spostare altre bottiglie, ti chiedo dove le hai rimesse.</li>
+    <li><b>Regalata o persa</b>: stessa procedura, scegli lo stato. Se hai sbagliato, ${K('Rimetti in cantina')} dalla scheda.</li></ol>
+    <p>Ogni scheda ha una <b>Storia</b>: acquisto, posizionamento, spostamenti, consumo.</p>`)}
+  ${D('Legenda della mappa', `
+    <p><b>Il colore della bottiglia</b> dipende dalla modalità scelta sopra la mappa:</p>
+    <p>${K('Tipo')}<br>${TIPI.map(x => dot(TIPO_COL[x], x)).join('')}</p>
+    <p>${K('Maturità')}<br>${['Attendere', 'Pronto', 'Al meglio', 'Da bere presto', 'Oltre finestra', 'Finestra mancante'].map(x => dot(MAT[x].bg, x)).join('')}</p>
+    <p>${K('Paese')}<br>${Object.keys(PAESE_COL).map(x => dot(PAESE_COL[x], x)).join('')}</p>
+    <p>${K('Prezzo')}<br>${PREZZO_B.map(x => dot(x.c, x.l)).join('')}</p>
+    <p><b>Il bordo</b> mostra sempre la maturità, tranne quando il colore è già la maturità:</p>
+    <ul>${['Attendere', 'Pronto', 'Al meglio', 'Da bere presto', 'Oltre finestra', 'Finestra mancante'].map(x => `<li>${ring(MAT[x].bg, x)} <span style="color:var(--mut)">${MD[x]}</span></li>`).join('')}</ul>
+    <p><b>Sulla bottiglia</b> vedi le ultime due cifre dell'annata (<b>'22</b> = 2022, <b>NV</b> = senza annata). Sotto o sopra c'è il numero del posto.</p>
+    <ul><li><b>Sagoma tratteggiata</b>: posto libero.</li><li><b>Bordo bianco luminoso</b>: bottiglia trovata dalla ricerca o dalla statistica che hai toccato.</li><li><b>Bottiglia opaca</b>: non corrisponde alla ricerca.</li></ul>`)}
+  ${D('Come leggere un codice', `
+    <p>Ogni bottiglia ha un codice: <b>ripiano + livello + fila + numero</b>. Esempio: ${K('4A-P3')}</p>
+    <ul><li><b>4</b>: ripiano 4 (il ripiano 1 è il più alto, l'ultimo è a terra).</li>
+    <li><b>A</b>: livello <b>alto</b>, il secondo strato appoggiato sopra. <b>B</b> è il livello basso.</li>
+    <li><b>P</b>: fila con il <b>fondo</b> della bottiglia verso lo <b>sportello</b>: dalla porta vedi il fondo. <b>R</b> è la fila con il fondo verso il <b>retro</b>: dalla porta vedi il collo.</li>
+    <li><b>3</b>: terza da sinistra, guardando dallo sportello.</li></ul>
+    ${guideMap()}
+    <p>Le bottiglie sono sdraiate testa contro testa e sfalsate: la R1 sta tra la P1 e la P2. Nella figura, la bottiglia evidenziata è la <b>P3</b>.</p>
+    <p>Il codice cambia solo se sposti fisicamente quella bottiglia, non quando altre entrano o escono.</p>`)}
+  ${D('Quando una bottiglia è bloccata', `
+    <p>Una bottiglia della fila <b>R</b> è bloccata dalle due <b>P</b> vicine; una del livello <b>basso</b> è bloccata da quelle del livello <b>alto</b> appoggiate sopra. Nella scheda leggi «Per prenderla sposta temporaneamente…» con i codici da muovere.</p>
+    <p><b>Cosa fare:</b> prendi la bottiglia che volevi, rimetti quelle spostate dove vuoi (anche in posti diversi), poi comunica all'app le nuove posizioni:</p>
+    <ul><li>se la stai stappando, appare da solo il <b>Riordino</b> dopo la conferma;</li><li>altrimenti, nella scheda, tocca ${K('Le ho spostate: riordina')}.</li></ul>
+    <p>Per ogni bottiglia scegli il nuovo posto, oppure lascia «dov'è ora» se è tornata dov'era. Il posto liberato dalla bottiglia stappata è già tra le scelte.</p>`)}
+  ${D('Spostare, aggiungere, capienza dei ripiani', `
+    <ul><li><b>Spostare una bottiglia dalla mappa</b>: scheda › ${K('Sposta')}, poi tocca il nuovo posto nella vista «Dall'alto». Se il posto è occupato, ti propongo lo scambio.</li>
+    <li><b>Cambiare posizione dall'elenco</b>: in <b>Cerca</b> (e in «Da riposizionare») ogni bottiglia ha un <b>codice dorato</b> tratteggiato: toccalo e scegli il nuovo posto da un elenco. È la stessa bottiglia, con la sua storia, non serve toglierla e riaggiungerla. Se scegli un posto occupato, le due si scambiano. Ordinando per <b>posizione</b> l'elenco si raggruppa per ripiano, livello e fila.</li>
+    <li><b>Aggiungere in un posto preciso</b>: nella mappa tocca una sagoma tratteggiata.</li>
+    <li><b>Posti per fila</b>: variano da ripiano a ripiano e dal tipo di bottiglia. Sotto la mappa, per il livello che stai guardando, regola con ${K('−')} e ${K('+')} la fila R e la fila P. Non puoi togliere un posto occupato.</li>
+    <li><b>Fila piena</b>: quando aggiungi una bottiglia, in fondo all'elenco delle posizioni trovi «Fila piena: aggiungi un posto».</li>
+    <li><b>Struttura intera</b>: Altro › ${K('Ripiani, livelli e file')}. Qui puoi anche creare o togliere il livello alto di un ripiano.</li>
+    <li><b>Da riposizionare</b>: bottiglie senza posto valido. Compaiono in fondo alla mappa; aprile e tocca «Sposta».</li></ul>`)}
+  ${D('Svuotare e riempire la cantinetta', `
+    <p>Per le pulizie periodiche: <b>Altro › ${K('Svuota e riempi la cantinetta')}</b>.</p>
+    <ol><li>Fai prima un <b>backup</b> (Altro › Salva backup).</li>
+    <li>Tocca <b>Svuota</b>: tutte le bottiglie restano in cantina ma senza posto, con il vecchio codice memorizzato. Puoi annullare finché non chiudi l'app.</li>
+    <li>Pulisci la cantinetta.</li>
+    <li>Per rimettere le bottiglie scegli <b>dove stai riponendo</b>: ripiano, livello e fila (di solito prima la R, poi la P). Poi tocca le bottiglie nell'ordine in cui le riponi: ognuna va nel prossimo posto libero. Quando la fila è piena si passa alla successiva.</li>
+    <li>Per partire da un posto preciso tocca un cerchio vuoto. Se i posti non bastano, o ne avanzano, usa <b>+</b> e <b>−</b> accanto alla fila.</li>
+    <li>In alternativa tocca <b>Proponi una disposizione automatica</b>: il ripiano è scelto per tipo (rossi in alto, bianchi e bollicine più in basso) e, dentro il ripiano, le più longeve vanno in fondo e in basso, quelle da bere prima davanti e in alto. È una proposta: poi correggi ciò che vuoi dall'elenco.</li></ol>
+    <p><b>Annulla ultima operazione</b> torna indietro di un passo: una bottiglia posizionata, lo svuotamento o la disposizione automatica. Chiudendo l'app la cronologia dell'annulla si perde.</p>`)}
+  ${D('Finestra di consumo e ricerca guidata', `
+    <p>Gli anni di <b>inizio</b> e <b>fine</b> decidono lo stato di maturità. Se non li conosci, usa la <b>Ricerca guidata</b>:</p>
+    <ol><li>Nel form, apri «Non conosci la finestra?» e tocca <b>Copia richiesta</b>.</li>
+    <li>Incollala in Copilot, Gemini o ChatGPT con il tuo <b>account personale</b>, meglio con la ricerca approfondita.</li>
+    <li>Incolla la risposta nell'app e tocca <b>Leggi la risposta</b>, poi <b>Usa questi anni</b>.</li></ol>
+    <p>Restano salvati motivazione, punteggi e fonti, visibili nella scheda. È un suggerimento: guarda le fonti, soprattutto se la confidenza è «bassa». Per più bottiglie insieme usa il pulsante in <b>Avvisi</b> (campana).</p>`)}
+  ${D('Backup, sicurezza, aggiornamenti', `
+    <ul><li><b>Backup</b>: Altro › ${K('Salva backup')} scarica un file con bottiglie, ripiani e foto. Fallo ogni tanto e tienilo nel tuo OneDrive personale. «Importa dati» sostituisce tutto: usalo solo per ripristinare.</li>
+    <li><b>Sicurezza</b>: l'accesso è protetto da email e password e i dati sono nel tuo database; il codice su GitHub non contiene i vini. Non condividere la password.</li>
+    <li><b>Senza rete</b>: l'app si apre e funziona; le modifiche si sincronizzano appena torna la connessione.</li>
+    <li><b>Aggiornare l'app</b>: su GitHub, nel repository, <i>Add file › Upload files</i>, trascina il nuovo <b>index.html</b>, <i>Commit changes</i>. <b>Non sostituire config.js.</b> Poi chiudi del tutto l'app e riaprila.</li></ul>`)}
+  ${D('Problemi frequenti', `
+    <ul><li><b>Non vedo le modifiche dopo un aggiornamento</b>: chiudi completamente l'app e riaprila; se serve, aspetta un paio di minuti.</li>
+    <li><b>«Permesso negato»</b>: controlla in Firebase che le regole contengano la tua email.</li>
+    <li><b>Una bottiglia è tra quelle «Da riposizionare»</b>: aprila e tocca «Sposta».</li>
+    <li><b>Il numero dei posti liberi non torna</b>: dipende dai posti impostati per ogni fila. Regolali con − e + sotto la mappa.</li>
+    <li><b>La foto non si vede</b>: riaprila dalla scheda; le foto sono ridotte e salvate nel database.</li></ul>`)}`;
+}
+
 function viewAltro() {
   const st = !navigator.onLine ? 'Offline: le modifiche si sincronizzano appena torna la rete' : syncInfo.pending ? 'Sincronizzazione in corso…' : 'Tutto sincronizzato';
   const lb = localStorage.getItem('cantinetta_lastBackup');
   return `<div class="sec" style="margin-top:4px"><h2>Altro</h2></div><div class="card menu" style="padding:2px 12px">
-  ${[['add','Aggiungi una bottiglia','Nuovo acquisto con posto suggerito'],['storico','Storico bevute','Bevute, regalate, perse'],['shelves','Ripiani, livelli e file','Quante bottiglie ci stanno in ogni fila'],['export','Salva backup','Scarica tutti i dati in un file'],['import','Importa dati o ripristina backup','Carica un file .json'],['info','Come si usa','Il ciclo di vita di una bottiglia'],['logout','Esci','Account: ' + ((curUser && curUser.email) || '')]].map(x => `<div class="row" data-act="${x[0]}"><div class="m"><b>${x[1]}</b><span>${esc(x[2])}</span></div>${ic('chev')}</div>`).join('')}</div>
+  ${[['add','Aggiungi una bottiglia','Nuovo acquisto con posto suggerito'],['storico','Storico bevute','Bevute, regalate, perse'],['shelves','Ripiani, livelli e file','Quante bottiglie ci stanno in ogni fila'],['riordino','Svuota e riempi la cantinetta','Per pulirla e rimettere tutte le bottiglie'],['export','Salva backup','Scarica tutti i dati in un file'],['import','Importa dati o ripristina backup','Carica un file .json'],['guida','Guida all\'app','Come si usa, legenda della mappa, domande frequenti'],['logout','Esci','Account: ' + ((curUser && curUser.email) || '')]].map(x => `<div class="row" data-act="${x[0]}"><div class="m"><b>${x[1]}</b><span>${esc(x[2])}</span></div>${ic('chev')}</div>`).join('')}</div>
   <div class="note" style="margin-top:14px">${st}.<br>Ultimo backup: ${lb ? fmtDate(lb) : 'mai'}. Conserva ogni tanto un backup nel tuo OneDrive personale.</div>`;
 }
 function viewStorico() {
   const g = outC().sort((a, b) => String(b.dataConsumo || '').localeCompare(String(a.dataConsumo || '')));
-  return `<div class="sec" style="margin-top:4px"><h2>Storico</h2><small>${g.length}</small></div><div class="card" style="padding:4px 12px">${g.length ? g.map(rowHtml).join('') : '<div class="empty">Ancora nulla</div>'}</div>`;
+  return `<div class="sec" style="margin-top:4px"><h2>Storico</h2><small>${g.length}</small></div><div class="card" style="padding:4px 12px">${g.length ? g.map(b => rowHtml(b)).join('') : '<div class="empty">Ancora nulla</div>'}</div>`;
 }
 
 /* ============ SCHEDA BOTTIGLIA ============ */
@@ -823,8 +948,8 @@ function openBottleBase(id) {
   ${inCel ? windowBar(b) : ''}${b.aiWin ? aiCard(b.aiWin) : ''}
   ${inCel ? `<div class="card" style="margin:14px 0"><div class="pin" style="margin:0">${ic('pin', 20)}<b>${validSlot(b) ? esc(slotLabel(b)) : 'Posizione non assegnata'}</b></div>
     ${validSlot(b) ? `<div class="sub" style="margin-top:8px">${orientHint(b)}</div>` : ''}
-    ${bl.length ? `<div class="sub" style="margin-top:8px;color:var(--warn)">Per prenderla togli prima: <b>${esc(bl.map(x => title(x) + ' (' + slotCode(x) + ')').join(', '))}</b></div>` : ''}
-    <div class="btns"><button class="btn sec2" data-act="showmap" data-id="${id}">Mostra in mappa</button><button class="btn sec2" data-act="sposta" data-id="${id}">Sposta</button></div></div>` : ''}
+    ${bl.length ? `<div class="sub" style="margin-top:8px;color:var(--warn)">Per prenderla sposta temporaneamente: <b>${esc(bl.map(x => title(x) + ' (' + slotCode(x) + ')').join(', '))}</b>.<div style="margin-top:8px"><button class="btn sec2" data-act="reorder" data-id="${id}">Le ho spostate: riordina</button></div></div>` : ''}
+    <div class="btns"><button class="btn sec2" data-act="showmap" data-id="${id}">Mostra in mappa</button><button class="btn sec2" data-act="sposta" data-id="${id}">Sposta</button></div><button class="btn sec2" data-act="editpos" data-id="${id}" style="margin-top:10px">Cambia posizione da elenco</button></div>` : ''}
   <div class="kv"><div><small>Prezzo</small>${b.prezzo ? eur(b.prezzo) : '—'}</div><div><small>Servizio</small>${serveTemp(b)}</div>
   ${isBolle(b.tipo) ? `<div><small>Sboccatura</small>${b.sboccatura ? fmtMonth(b.sboccatura) : '<span style="color:var(--warn)">da inserire</span>'}</div>` : ''}
   ${b.dataAcquisto ? `<div><small>Acquistata</small>${fmtDate(b.dataAcquisto)}</div>` : ''}
@@ -850,8 +975,27 @@ function confirmDrink(id) {
   b.stato = f.get('stato'); b.dataConsumo = f.get('data') || todayISO();
   b.voto = (b.stato === 'Bevuta' && !f.get('novoto')) ? parseFloat(f.get('voto')) : null;
   b.note = (f.get('note') || '').trim() || null;
+  const bl = validSlot(b) ? blockers(b) : [], freed = validSlot(b) ? keyOf(b) : null, nm = title(b);
   if (validSlot(b)) b.posPrec = slotCode(b); b.piano = null; b.liv = null; b.fila = null; b.pos = null; delete b.posto;
   save(); closeSheet(); toast('Registrata · posto liberato'); render();
+  if (bl.length) openReorder(bl, freed, 'Per prendere ' + nm + ' hai dovuto spostare ' + (bl.length === 1 ? 'una bottiglia' : bl.length + ' bottiglie') + '. Dove le hai rimesse?');
+}
+function openReorder(list, freed, intro) {
+  list = list.filter(validSlot); if (!list.length) return;
+  const base = freeSlots().concat(list.map(b => ({ piano: b.piano, liv: b.liv, fila: b.fila, pos: b.pos }))), seen = new Set();
+  const opts = base.filter(s => !seen.has(keyOf(s)) && seen.add(keyOf(s))).sort((a, c) => a.piano - c.piano || (a.liv === c.liv ? 0 : a.liv === 'B' ? -1 : 1) || (a.fila === c.fila ? 0 : a.fila === 'R' ? -1 : 1) || a.pos - c.pos);
+  RS.reo = list.map(b => b.id);
+  openSheet(`<h2>Riordino</h2><div class="sub" style="margin:3px 0 10px">${esc(intro)}</div><div class="note" style="margin-bottom:12px">Per ogni bottiglia indica dove l'hai rimessa. Lascia «dov'è ora» se è tornata al suo posto: l'app aggiorna i codici di quelle che hai cambiato di posto.</div><form id="rof">
+  ${list.map(b => { const cur = keyOf(b); return `<div class="field"><label>${esc(title(b))} ${vint(b)} · ora ${cur}</label><select name="r_${b.id}">${opts.map(s => { const k = keyOf(s); return `<option value="${k}" ${k === cur ? 'selected' : ''}>${k}${k === cur ? " · dov'è ora" : ''}${k === freed ? ' · posto liberato' : ''}</option>`; }).join('')}</select></div>`; }).join('')}
+  <button type="button" class="btn" data-act="applyReorder">Conferma</button><div style="height:10px"></div><button type="button" class="btn sec2" data-act="closeSheet">Lascia tutto com'è</button></form>`);
+}
+function applyReorder() {
+  const f = new FormData($('#rof')), ids = RS.reo || [], bs = ids.map(getB).filter(Boolean), tg = bs.map(b => f.get('r_' + b.id));
+  if (new Set(tg).size !== tg.length) { toast('Due bottiglie nello stesso posto'); return; }
+  const { occ } = occupancy(), mine = new Set(ids);
+  for (const k of tg) { const o = occ[k]; if (o && !mine.has(o.id)) { toast('Il posto ' + k + ' è occupato'); return; } }
+  bs.forEach((b, i) => { const sl = parseKey(tg[i]); if (sl) { Object.assign(b, sl); delete b.posto; } });
+  save(); closeSheet(); toast('Posizioni aggiornate'); render();
 }
 function rimetti(id) {
   const b = getB(id), s = suggestSlot(b.tipo);
@@ -860,9 +1004,143 @@ function rimetti(id) {
   save(); toast('Di nuovo in cantina'); render(); openBottle(id);
 }
 
+/* ============ POSIZIONE DALL'ELENCO ============ */
+function adjustCap(n, liv, f, d) {
+  const sh = shelf(n), li = LV.indexOf(liv), l = sh && sh.lv[li]; if (!l) return false;
+  const k = f === 'P' ? 'p' : 'r';
+  if (d > 0) { if (l[k] >= 12) { toast('Massimo 12 posti per fila'); return false; } l[k]++; }
+  else {
+    if (l[k] <= 0) return false;
+    const { occ } = occupancy(); let mx = 0; slotsOf(sh).forEach(s => { if (s.liv === liv && s.fila === f && occ[keyOf(s)]) mx = Math.max(mx, s.pos); });
+    if (l[k] - 1 < mx) { toast('Il posto ' + l[k] + ' è occupato: sposta prima quella bottiglia'); return false; }
+    l[k]--;
+    if (li === 0 && sh.lv.length > 1 && l.p + l.r === 0) { l[k]++; toast('Il livello basso non può restare vuoto se esiste quello alto'); return false; }
+    if (li === 1 && l.p + l.r === 0) { sh.lv.pop(); if (UI.mapShelf === n && UI.mapLv === 'A') UI.mapLv = 'B'; if (UI.fill && UI.fill.piano === n && UI.fill.liv === 'A') UI.fill.liv = 'B'; }
+  }
+  save(); return true;
+}
+function clearPos(b) { b.piano = null; b.liv = null; b.fila = null; b.pos = null; delete b.posto; }
+function snapPos(b) { return { piano: b.piano == null ? null : b.piano, liv: b.liv == null ? null : b.liv, fila: b.fila == null ? null : b.fila, pos: b.pos == null ? null : b.pos }; }
+function resolveSlot(v) {
+  if (v.charAt(0) === '+') { const mm = /^\+(\d+)([BA])-([PR])$/.exec(v), shx = mm && shelf(+mm[1]), lx = shx && shx.lv[LV.indexOf(mm[2])]; if (!lx) return null; const kk = mm[3] === 'P' ? 'p' : 'r'; lx[kk]++; return { piano: +mm[1], liv: mm[2], fila: mm[3], pos: lx[kk] }; }
+  return parseKey(v);
+}
+function posChoices(b) {
+  const { occ } = occupancy(), cur = validSlot(b) ? keyOf(b) : '', groups = [];
+  S.shelves.forEach(sh => sh.lv.forEach((l, i) => ['R', 'P'].forEach(f => {
+    const cap = f === 'P' ? l.p : l.r; if (!cap) return;
+    const opts = []; for (let n = 1; n <= cap; n++) { const s = { piano: sh.n, liv: LV[i], fila: f, pos: n }, k = keyOf(s), o = occ[k]; opts.push(`<option value="${k}" ${k === cur ? 'selected' : ''}>${k} · ${n}ª da sinistra · ${k === cur ? 'posto attuale' : o ? 'occupato da ' + esc(title(o)) + ' ' + esc(String(vint(o))) + ' → scambia' : 'libero'}</option>`); }
+    if (cap < 12) opts.push(`<option value="+${sh.n}${LV[i]}-${f}">+ aggiungi un posto in fondo (${sh.n}${LV[i]}-${f}${cap + 1})</option>`);
+    groups.push(`<optgroup label="${esc(shelfName(sh.n) + (sh.lv.length > 1 ? ' · livello ' + LVN[LV[i]] : '') + ' · fila ' + FILAN[f] + (f === 'P' ? ' (fondo allo sportello)' : ' (fondo al retro)'))}">${opts.join('')}</optgroup>`);
+  })));
+  return `<option value="" ${cur ? '' : 'selected'}>Nessuna (da riposizionare)</option>` + groups.join('');
+}
+function openPos(id) {
+  const b = getB(id); if (!b || b.stato !== 'In cantina') return; const cur = validSlot(b) ? keyOf(b) : '';
+  openSheet(`<h2>Cambia posizione</h2><div class="sub" style="margin:3px 0 4px">${esc(title(b))} ${esc(String(vint(b)))}</div>
+  <div class="note" style="margin:8px 0 14px">Ora: <b>${cur ? esc(slotLabel(b)) + ' (' + cur + ')' : 'senza posto'}</b>.<br>La bottiglia resta la stessa, con la sua storia: cambia solo il posto. Se scegli un posto occupato, le due bottiglie si scambiano.</div>
+  <div class="field"><label>Nuova posizione</label><select id="possel">${posChoices(b)}</select></div>
+  <button class="btn" data-act="applyPos" data-id="${id}">Conferma</button><div style="height:10px"></div><button class="btn sec2" data-act="closeSheet">Annulla</button>`);
+}
+function applyPos(id) {
+  const b = getB(id), v = $('#possel').value, cur = validSlot(b) ? keyOf(b) : '';
+  if (v === cur) { closeSheet(); return; }
+  if (v === '') { if (cur) b.posPrec = cur; clearPos(b); save(); closeSheet(); toast('Posizione tolta'); keepScroll(render); return; }
+  const sl = resolveSlot(v); if (!sl) { toast('Posizione non valida'); return; }
+  const { occ } = occupancy(), o = occ[keyOf(sl)];
+  if (o && o !== b) {
+    if (cur) { const a = snapPos(b); Object.assign(b, sl); Object.assign(o, a); delete b.posto; delete o.posto; toast('Scambiate con ' + title(o)); }
+    else { if (!confirm(title(o) + ' è in quel posto e finirebbe tra le bottiglie «Da riposizionare». Procedere?')) return; o.posPrec = keyOf(o); clearPos(o); Object.assign(b, sl); delete b.posto; }
+  } else { Object.assign(b, sl); delete b.posto; }
+  save(); closeSheet(); if (!/Scambiate/.test($('#toast').textContent) || !$('#toast').classList.contains('on')) toast('Posizione aggiornata: ' + keyOf(b)); keepScroll(render);
+}
+
+/* ============ SVUOTA E RIEMPI ============ */
+function fillRows() { const o = []; S.shelves.forEach(sh => sh.lv.forEach((l, i) => ['R', 'P'].forEach(f => { const c = f === 'P' ? l.p : l.r; if (c > 0) o.push({ piano: sh.n, liv: LV[i], fila: f, cap: c }); }))); return o; }
+function rowFree(r) { const { occ } = occupancy(), out = []; for (let p = 1; p <= r.cap; p++) if (!occ[keyOf({ piano: r.piano, liv: r.liv, fila: r.fila, pos: p })]) out.push(p); return out; }
+function curRow() { const f = UI.fill; return f && fillRows().find(r => r.piano === f.piano && r.liv === f.liv && r.fila === f.fila) || null; }
+function ensureFill() { if (!curRow()) { const rows = fillRows(), r = rows.find(x => rowFree(x).length) || rows[0]; UI.fill = r ? { piano: r.piano, liv: r.liv, fila: r.fila } : null; UI.fillCursor = null; } return UI.fill; }
+function setFill(piano, liv, fila) {
+  const rows = fillRows(); let r = rows.find(x => x.piano === piano && x.liv === liv && x.fila === fila) || rows.find(x => x.piano === piano && x.liv === liv) || rows.find(x => x.piano === piano);
+  if (r) { UI.fill = { piano: r.piano, liv: r.liv, fila: r.fila }; UI.fillCursor = null; }
+}
+function rowName(r) { return r.piano + r.liv + '-' + r.fila; }
+function viewRiordino() {
+  const c = inC(), un = unplaced(), placed = c.length - un.length, rows = fillRows(), cap = rows.reduce((a, r) => a + r.cap, 0), f = ensureFill(), r = curRow();
+  let h = `<div class="sec" style="margin-top:4px"><h2>Svuota e riempi</h2></div>
+  <div class="card"><div class="note" style="color:var(--txt);line-height:1.55">Quando svuoti la cantinetta per pulirla, le bottiglie restano <b>in cantina ma senza posto</b>. Poi le rimetti qui, nell'ordine in cui le riponi davvero, e l'app aggiorna i codici. Niente da riscrivere.</div>
+  <div class="kpis" style="margin-top:10px"><div class="kpi"><b>${placed}</b><small>con un posto</small></div><div class="kpi"><b>${un.length}</b><small>da collocare · ${Math.max(0, cap - placed)} posti liberi</small></div></div>
+  <div style="display:grid;gap:10px;margin-top:12px">
+  ${placed > 0 ? `<button class="btn dng" data-act="clearAll">Svuota: togli il posto a tutte le bottiglie</button>` : ''}
+  ${un.length > 0 ? `<button class="btn sec2" data-act="autoFill">Proponi una disposizione automatica</button>` : ''}
+  ${RS.undo.length ? `<button class="btn sec2" data-act="undo">Annulla ultima operazione (${esc(RS.undo[RS.undo.length - 1].label)})</button>` : ''}</div>
+  <div class="note" style="margin-top:10px">Prima di svuotare, per sicurezza, fai un backup da <b>Altro › Salva backup</b>.</div></div>`;
+  if (!un.length) return h + `<div class="ok" style="margin-top:14px">✓ Tutte le bottiglie in cantina hanno un posto.</div><div class="note">Per cambiare la posizione di una sola bottiglia: <b>Cerca</b>, poi tocca il suo codice dorato.</div>`;
+  if (!f || !r) return h + '<div class="empty">Nessuna fila configurata: aggiungi i posti da Altro › Ripiani, livelli e file.</div>';
+  const sh = shelf(f.piano), { occ } = occupancy(), free = rowFree(r), target = UI.fillCursor && free.includes(UI.fillCursor) ? UI.fillCursor : free[0];
+  const shelfChips = S.shelves.map(s => { const used = slotsOf(s).filter(x => occ[keyOf(x)]).length; return `<button class="chip ${s.n === f.piano ? 'on' : ''}" data-act="fsh" data-v="${s.n}">Rip. ${s.n} · ${used}/${capOf(s)}</button>`; }).join('');
+  const lvChips = sh.lv.length > 1 ? ['B', 'A'].map(k => `<button class="chip ${k === f.liv ? 'on' : ''}" data-act="flv" data-v="${k}">Livello ${LVN[k]}</button>`).join('') : '';
+  const flChips = rows.filter(x => x.piano === f.piano && x.liv === f.liv).map(x => `<button class="chip ${x.fila === f.fila ? 'on' : ''}" data-act="ffl" data-v="${x.fila}">Fila ${x.fila} · ${x.fila === 'R' ? 'fondo al retro' : 'fondo allo sportello'}</button>`).join('');
+  let circ = ''; for (let p = 1; p <= r.cap; p++) {
+    const b = occ[keyOf({ piano: r.piano, liv: r.liv, fila: r.fila, pos: p })];
+    circ += b ? `<div class="fsl"><button class="fs b clk" data-act="open" data-id="${b.id}" style="background:${colorOf(b)};color:${ink(colorOf(b))}">${b.annata ? "'" + String(b.annata).slice(-2) : 'NV'}</button>${p}</div>`
+      : `<div class="fsl"><button class="fs ${p === target ? 't' : 'e'}" data-act="fcur" data-p="${p}">${p === target ? '▼' : ''}</button>${p}</div>`;
+  }
+  h += `<div class="fillbar"><div class="lbl" style="margin:8px 0 4px">Dove stai riponendo</div><div class="chips">${shelfChips}</div>${lvChips || flChips ? `<div class="chips">${lvChips}${flChips}</div>` : ''}
+  <div class="card" style="padding:10px;margin-top:2px"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px"><b>${rowName(r)}</b><span style="display:flex;align-items:center;gap:8px"><button class="stpb" data-act="fcap" data-d="-1" aria-label="Togli un posto" style="width:38px;height:34px">−</button><small class="note">${r.cap} posti</small><button class="stpb" data-act="fcap" data-d="1" aria-label="Aggiungi un posto" style="width:38px;height:34px">+</button></span></div>
+  <div style="display:flex;gap:7px;flex-wrap:wrap">${circ}</div>
+  <div class="note" style="margin-top:8px">${free.length ? 'La prossima bottiglia va in <b>' + keyOf({ piano: r.piano, liv: r.liv, fila: r.fila, pos: target }) + '</b>. Tocca un altro posto vuoto per partire da lì.' : 'Fila piena: tocca + per aggiungere un posto oppure scegli un\'altra fila.'}</div></div></div>
+  <div class="sec" style="margin-top:14px"><h2>Da collocare</h2><small id="fcnt"></small></div><div class="sub" style="margin:-4px 0 8px">Tocca una bottiglia per metterla nel posto indicato sopra.</div>
+  <input data-bind="fq" placeholder="Cerca tra quelle da collocare…" value="${esc(UI.fq)}" autocomplete="off"><div style="height:8px"></div>
+  ${chips('fillT', ['Tutti', 'Rosso', 'Bianco', 'Bollicine', 'Altro'], UI.fillT)}<div id="flist"></div>`;
+  return h;
+}
+function renderFillList() {
+  const el = $('#flist'); if (!el) return;
+  let l = unplaced();
+  if (UI.fillT === 'Rosso') l = l.filter(b => b.tipo === 'Rosso'); else if (UI.fillT === 'Bianco') l = l.filter(b => b.tipo === 'Bianco'); else if (UI.fillT === 'Bollicine') l = l.filter(b => isBolle(b.tipo)); else if (UI.fillT === 'Altro') l = l.filter(b => b.tipo !== 'Rosso' && b.tipo !== 'Bianco' && !isBolle(b.tipo));
+  if (UI.fq.trim()) l = l.filter(b => matches(b, UI.fq));
+  const tk = x => TIPI.indexOf(x.tipo);
+  l.sort((a, b) => tk(a) - tk(b) || String(a.regione || '').localeCompare(String(b.regione || '')) || String(a.produttore || '').localeCompare(String(b.produttore || '')) || (a.annata || 0) - (b.annata || 0));
+  el.innerHTML = l.length ? `<div class="card" style="padding:4px 12px">${l.map(b => rowHtml(b, 'place')).join('')}</div>` : '<div class="empty">Nessuna bottiglia con questo filtro</div>';
+  const c = $('#fcnt'); if (c) c.textContent = unplaced().length + ' in totale';
+}
+function placeBottle(id) {
+  const b = getB(id), f = ensureFill(), r = curRow(); if (!b || !f || !r) return;
+  const free = rowFree(r), pos = UI.fillCursor && free.includes(UI.fillCursor) ? UI.fillCursor : free[0];
+  if (!pos) { toast('Fila piena: tocca + per aggiungere un posto o scegli un\'altra fila'); return; }
+  RS.undo.push({ label: 'posizionata ' + title(b), moves: [{ id, prev: snapPos(b) }] }); if (RS.undo.length > 30) RS.undo.shift();
+  Object.assign(b, { piano: f.piano, liv: f.liv, fila: f.fila, pos }); delete b.posto; UI.fillCursor = null;
+  const left = rowFree(r);
+  if (!left.length) { const rows = fillRows(), i = rows.findIndex(x => x.piano === r.piano && x.liv === r.liv && x.fila === r.fila), nx = rows.slice(i + 1).concat(rows.slice(0, i)).find(x => rowFree(x).length); if (nx) { UI.fill = { piano: nx.piano, liv: nx.liv, fila: nx.fila }; toast('Fila ' + rowName(r) + ' completa: passo a ' + rowName(nx)); } else toast('Fila ' + rowName(r) + ' completa'); }
+  else toast(title(b) + ' → ' + keyOf(b));
+  save(); keepScroll(render);
+}
+function clearAll() {
+  const list = inC().filter(validSlot); if (!list.length) return;
+  if (!confirm('Togliere il posto a ' + list.length + ' bottiglie? Restano in cantina, senza posizione. Potrai annullare finché non chiudi l\'app.')) return;
+  RS.undo.push({ label: 'svuotata la cantinetta', moves: list.map(b => ({ id: b.id, prev: snapPos(b) })) });
+  suppressEvents = true; try { list.forEach(b => { b.posPrec = keyOf(b); clearPos(b); }); save(); } finally { suppressEvents = false; }
+  UI.fill = null; ensureFill(); toast('Cantinetta svuotata: ' + list.length + ' bottiglie da collocare'); keepScroll(render);
+}
+function autoFill() {
+  const list = unplaced().sort((a, b) => (b.fine || 2100) - (a.fine || 2100) || (b.inizio || 0) - (a.inizio || 0)); if (!list.length) return;
+  if (!confirm('Disporre automaticamente ' + list.length + ' bottiglie? Il ripiano è scelto per tipo; dentro il ripiano le più longeve vanno in fondo e in basso, quelle da bere prima davanti e in alto. Potrai annullare e correggere ogni posto dall\'elenco.')) return;
+  const moves = []; let n = 0;
+  suppressEvents = true;
+  try { for (const b of list) { const s = suggestSlot(b.tipo); if (!s) break; moves.push({ id: b.id, prev: snapPos(b) }); Object.assign(b, s); delete b.posto; n++; } save(); } finally { suppressEvents = false; }
+  if (moves.length) { RS.undo.push({ label: 'disposizione automatica', moves }); if (RS.undo.length > 30) RS.undo.shift(); }
+  UI.fill = null; ensureFill(); toast(n + ' bottiglie collocate' + (n < list.length ? ' · ' + (list.length - n) + ' senza posto: aggiungi posti' : '')); keepScroll(render);
+}
+function undoLast() {
+  const u = RS.undo.pop(); if (!u) return;
+  suppressEvents = true; try { u.moves.forEach(m => { const b = getB(m.id); if (b) { Object.assign(b, m.prev); delete b.posto; } }); save(); } finally { suppressEvents = false; }
+  UI.fill = null; ensureFill(); toast('Annullato: ' + u.label); keepScroll(render);
+}
+
 /* ============ FORM AGGIUNGI / MODIFICA ============ */
 /* ============ RICERCA GUIDATA DELLA FINESTRA ============ */
-const RS = { mode: 'form', items: [], ai: null, results: null };
+const RS = { mode: 'form', items: [], ai: null, results: null, reo: [], undo: [] };
 function srcLinks(f) { return (f || []).map(s => s.u ? `<a href="${esc(s.u)}" target="_blank" rel="noopener noreferrer" style="color:var(--gold)">${esc(s.t)}</a>` : esc(s.t)).join(' · '); }
 function aiCard(a) { return `<div class="card" style="margin:10px 0;background:var(--card2)"><div class="sub" style="margin:0 0 4px">Finestra da ricerca guidata · confidenza ${esc(a.conf || '?')}${a.at ? ' · ' + fmtDate(a.at) : ''}</div>${a.sintesi ? `<div class="note" style="color:var(--txt)">${esc(a.sintesi)}</div>` : ''}${a.punteggi && a.punteggi.length ? `<div class="why">${a.punteggi.map(p => `<span>${esc(p.f)}: ${esc(p.v)}</span>`).join('')}</div>` : ''}${a.fonti && a.fonti.length ? `<div class="note" style="margin-top:6px">Fonti: ${srcLinks(a.fonti)}</div>` : ''}</div>`; }
 function researchBoxHtml(mode, items) {
@@ -969,7 +1247,10 @@ function posOptions(b, preset) {
   const sg = suggestSlot((b && b.tipo) || 'Rosso'), sel = cur ? keyOf(cur) : preset ? keyOf(preset) : sg ? keyOf(sg) : '';
   const groups = {};
   all.sort((x, y) => x.piano - y.piano || (x.liv === y.liv ? 0 : x.liv === 'B' ? -1 : 1) || (x.fila === y.fila ? 0 : x.fila === 'R' ? -1 : 1) || x.pos - y.pos).forEach(s => { const g = s.piano + s.liv + s.fila; (groups[g] = groups[g] || []).push(s); });
-  return `<option value="">Nessuna (decido dopo)</option>` + Object.values(groups).map(arr => { const s0 = arr[0], sh = shelf(s0.piano); return `<optgroup label="${esc(shelfName(s0.piano) + (sh.lv.length > 1 ? ' · livello ' + LVN[s0.liv] : '') + ' · fila ' + FILAN[s0.fila] + (s0.fila === 'P' ? ' (fondo allo sportello)' : ' (fondo al retro)'))}">` + arr.map(s => `<option value="${keyOf(s)}" ${keyOf(s) === sel ? 'selected' : ''}>${keyOf(s)} · ${s.pos}ª da sinistra</option>`).join('') + '</optgroup>'; }).join('');
+  const ext = [];
+  S.shelves.forEach(sh => sh.lv.forEach((l, i) => ['P', 'R'].forEach(f => { const cap = f === 'P' ? l.p : l.r; if (cap > 0 && cap < 12 && !all.some(s => s.piano === sh.n && s.liv === LV[i] && s.fila === f)) ext.push({ piano: sh.n, liv: LV[i], fila: f, next: cap + 1 }); })));
+  const extH = ext.length ? `<optgroup label="Fila piena: aggiungi un posto">` + ext.map(e => `<option value="+${e.piano}${e.liv}-${e.fila}">${esc(shelfName(e.piano))} · livello ${LVN[e.liv]} · fila ${FILAN[e.fila]} → nuovo posto ${e.piano}${e.liv}-${e.fila}${e.next}</option>`).join('') + '</optgroup>' : '';
+  return `<option value="">Nessuna (decido dopo)</option>` + Object.values(groups).map(arr => { const s0 = arr[0], sh = shelf(s0.piano); return `<optgroup label="${esc(shelfName(s0.piano) + (sh.lv.length > 1 ? ' · livello ' + LVN[s0.liv] : '') + ' · fila ' + FILAN[s0.fila] + (s0.fila === 'P' ? ' (fondo allo sportello)' : ' (fondo al retro)'))}">` + arr.map(s => `<option value="${keyOf(s)}" ${keyOf(s) === sel ? 'selected' : ''}>${keyOf(s)} · ${s.pos}ª da sinistra</option>`).join('') + '</optgroup>'; }).join('') + extH;
 }
 function openForm(id, preset) {
   RS.ai = null;
@@ -1005,7 +1286,10 @@ async function saveForm(id) {
   if (RS.ai && RS.ai.inizio === b.inizio && RS.ai.fine === b.fine) b.aiWin = RS.ai; else if (b.aiWin && (b.aiWin.inizio !== b.inizio || b.aiWin.fine !== b.fine)) delete b.aiWin;
   if (b.stato === 'In cantina') {
     const pos = g('pos');
-    const sl = parseKey(pos); if (sl) { b.piano = sl.piano; b.liv = sl.liv; b.fila = sl.fila; b.pos = sl.pos; } else { b.piano = null; b.liv = null; b.fila = null; b.pos = null; }
+    let sl = null;
+    if (pos.charAt(0) === '+') { const mm = /^\+(\d+)([BA])-([PR])$/.exec(pos), shx = mm && shelf(+mm[1]), lx = shx && shx.lv[LV.indexOf(mm[2])]; if (lx) { const kk = mm[3] === 'P' ? 'p' : 'r'; lx[kk]++; sl = { piano: +mm[1], liv: mm[2], fila: mm[3], pos: lx[kk] }; } }
+    else sl = parseKey(pos);
+    if (sl) { b.piano = sl.piano; b.liv = sl.liv; b.fila = sl.fila; b.pos = sl.pos; } else { b.piano = null; b.liv = null; b.fila = null; b.pos = null; }
     delete b.posto;
   }
   if (!id) S.bottles.push(b);
@@ -1014,6 +1298,7 @@ async function saveForm(id) {
 }
 
 /* ============ AZIONI ============ */
+function keepScroll(fn) { const y = window.scrollY; fn(); window.scrollTo(0, y); }
 function toast(t) { const e = $('#toast'); e.textContent = t; e.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => e.classList.remove('on'), 2200); }
 let fotoFor = null;
 function slotTap(k) {
@@ -1029,7 +1314,7 @@ function slotTap(k) {
 }
 function openShelves(first) {
   const row = (s, k) => { const l = s.lv[k === 'B' ? 0 : 1] || { p: 0, r: 0 }; return `<div class="g2" style="margin-top:8px"><div class="field" style="margin:0"><label>Livello ${LVN[k]} · fila P</label><input name="p${s.n}${k}" type="number" inputmode="numeric" min="0" max="10" value="${l.p}"></div><div class="field" style="margin:0"><label>Livello ${LVN[k]} · fila R</label><input name="r${s.n}${k}" type="number" inputmode="numeric" min="0" max="10" value="${l.r}"></div></div>`; };
-  openSheet(`<h2>Ripiani, livelli e file</h2><div class="note" style="margin:8px 0 14px">${first ? '<b>Nuova struttura.</b> Ho precompilato 3 bottiglie per fila: <b>controlla e correggi</b> i numeri con quelli reali. ' : ''}Per ogni ripiano indica quante bottiglie ci stanno in ogni fila di ogni livello. <b>R</b> = fila col fondo verso il retro, <b>P</b> = fila col fondo verso lo sportello. Il livello alto è il secondo strato appoggiato sopra il basso: mettilo a 0 e 0 se il ripiano ha un solo strato. Le bottiglie che non trovano più posto finiscono in «Da riposizionare».</div><form id="shf">
+  openSheet(`<h2>Ripiani, livelli e file</h2><div class="note" style="margin:8px 0 14px">${first ? '<b>Nuova struttura.</b> Ho precompilato 3 bottiglie per fila: <b>controlla e correggi</b> i numeri con quelli reali. ' : ''}Per ogni ripiano indica quante bottiglie ci stanno in ogni fila di ogni livello. <b>Non serve essere precisi</b>: sono posti massimi e puoi aggiungerne o toglierne in qualsiasi momento con − e + sotto la mappa. <b>R</b> = fila col fondo verso il retro, <b>P</b> = fila col fondo verso lo sportello. Il livello alto è il secondo strato appoggiato sopra il basso: mettilo a 0 e 0 se il ripiano ha un solo strato. Le bottiglie che non trovano più posto finiscono in «Da riposizionare».</div><form id="shf">
   ${S.shelves.map(s => `<div class="card" style="margin-bottom:10px"><b>${shelfName(s.n)}</b>${row(s, 'B')}${row(s, 'A')}</div>`).join('')}
   <button type="button" class="btn" data-act="saveShelves">Salva</button></form>`);
 }
@@ -1060,19 +1345,6 @@ async function doImport(file) {
   } finally { suppressEvents = false; }
   toast('Dati importati'); render();
 }
-function openInfo() {
-  openSheet(`<h2>Come si usa</h2><div class="note" style="color:var(--txt);margin-top:10px;line-height:1.65">
-  <b>Acquisto</b>: tasto + in basso a destra. Il posto suggerito riempie prima il livello basso e la fila R, poi la P.<br>
-  <b>Stappata, regalata, persa</b>: dalla scheda. Il posto si libera da solo.<br>
-  <b>Spostare</b>: scheda › Sposta, poi tocca il nuovo posto nella vista «Dall'alto».<br>
-  <b>Statistiche</b>: tocca una barra o un numero per vedere le bottiglie; da lì puoi evidenziarle in mappa.</div>
-  <div class="lbl">Come si numerano le bottiglie</div><div class="note" style="color:var(--txt);line-height:1.65">Codice = <b>ripiano + livello + fila + numero</b>, per esempio <b>4A-P3</b>.<br>
-  <b>Livello</b>: B = basso, A = alto (secondo strato appoggiato sopra).<br>
-  <b>Fila</b>: P = fondo verso lo sportello, R = fondo verso il retro.<br>
-  <b>Numero</b>: da sinistra a destra guardando dallo sportello.<br>
-  Il codice non cambia quando altre bottiglie entrano o escono, ma solo se sposti fisicamente quella bottiglia.</div>
-  <div class="lbl">Ogni tanto</div><div class="note">Altro › Salva backup e conserva il file nel tuo OneDrive personale.</div>`);
-}
 
 const ACT = {
   tab: el => { UI.tab = el.dataset.v; closeSheet(); render(); window.scrollTo(0, 0); },
@@ -1086,6 +1358,20 @@ const ACT = {
   listmap: () => { const { t, l } = statSel(UI.listCtx.k, UI.listCtx.v); UI.mapIds = l.map(b => b.id); UI.mapTitle = t; UI.mapQ = ''; UI.mapView = '3d'; UI.tab = 'mappa'; closeSheet(); render(); window.scrollTo(0, 0); },
   clearIds: () => { UI.mapIds = null; render(); },
   lvsel: el => { UI.mapLv = el.dataset.v; render(); },
+  editpos: el => openPos(el.dataset.id),
+  applyPos: el => applyPos(el.dataset.id),
+  riordino: () => { UI.tab = 'riordino'; ensureFill(); closeSheet(); render(); window.scrollTo(0, 0); },
+  fsh: el => { setFill(+el.dataset.v, 'B', 'R'); keepScroll(render); },
+  flv: el => { setFill(UI.fill.piano, el.dataset.v, UI.fill.fila); keepScroll(render); },
+  ffl: el => { setFill(UI.fill.piano, UI.fill.liv, el.dataset.v); keepScroll(render); },
+  fcur: el => { UI.fillCursor = +el.dataset.p; keepScroll(render); },
+  fcap: el => { const f = ensureFill(); if (f && adjustCap(f.piano, f.liv, f.fila, +el.dataset.d)) keepScroll(render); },
+  place: el => placeBottle(el.dataset.id),
+  clearAll: clearAll, autoFill: autoFill, undo: undoLast,
+  cap: el => { if (adjustCap(UI.mapShelf, UI.mapLv, el.dataset.f, +el.dataset.d)) render(); },
+  reorder: el => { const b = getB(el.dataset.id); if (b) openReorder(blockers(b), null, 'Hai spostato le bottiglie che bloccavano ' + title(b) + '. Dove le hai rimesse?'); },
+  applyReorder: applyReorder,
+  guida: () => { UI.tab = 'guida'; closeSheet(); render(); window.scrollTo(0, 0); },
   rcopy: doRCopy, rparse: doRParse, ruse: el => doRUse(+el.dataset.i), rapply: doRApply, rbatch: openResearchBatch,
   closeSheet: closeSheet,
   add: () => openForm(null),
@@ -1104,7 +1390,7 @@ const ACT = {
   slot: el => slotTap(el.dataset.k),
   foto: el => { fotoFor = el.dataset.id; $('#fileFoto').click(); },
   storico: () => { UI.tab = 'storico'; render(); },
-  shelves: () => openShelves(false), saveShelves: saveShelves, export: doExport, info: openInfo,
+  shelves: () => openShelves(false), saveShelves: saveShelves, export: doExport, info: () => ACT.guida(),
   import: () => $('#fileImp').click(),
   logout: () => { if (confirm('Uscire dall\'account?')) { closeSheet(); Cloud.logout(); } }
 };
@@ -1114,9 +1400,10 @@ function render() {
   { const fb = document.querySelector('.fab'); if (fb) fb.style.display = (UI.tab === 'mappa' && UI.mapView === '3d') ? 'none' : ''; }
   if (!loaded) { $('#view').innerHTML = '<div class="empty">Carico la cantina…</div>'; return; }
   const T = UI.tab;
-  $('#view').innerHTML = (!S.bottles.length && ['stasera','cerca','mappa','stats'].includes(T)) ? emptyHtml() : T === 'stasera' ? viewStasera() : T === 'cerca' ? viewCerca() : T === 'mappa' ? viewMappa() : T === 'stats' ? viewStats() : T === 'avvisi' ? viewAvvisi() : T === 'storico' ? viewStorico() : viewAltro();
+  $('#view').innerHTML = (!S.bottles.length && ['stasera','cerca','mappa','stats'].includes(T)) ? emptyHtml() : T === 'stasera' ? viewStasera() : T === 'cerca' ? viewCerca() : T === 'mappa' ? viewMappa() : T === 'stats' ? viewStats() : T === 'avvisi' ? viewAvvisi() : T === 'storico' ? viewStorico() : T === 'guida' ? viewGuida() : T === 'riordino' ? viewRiordino() : viewAltro();
   if (T === 'cerca' && $('#res')) { const s = document.querySelector('[data-bind="sort"]'); if (s) s.value = UI.sort; renderRes(); }
   if (T === 'mappa' && $('#cab')) renderCab();
+  if (T === 'riordino' && $('#flist')) renderFillList();
 }
 
 function emptyHtml() {
@@ -1127,6 +1414,7 @@ function bindEvents() {
   document.addEventListener('input', e => {
     const k = e.target.dataset && e.target.dataset.bind;
     if (k === 'q') { UI.q = e.target.value; renderRes(); }
+    else if (k === 'fq') { UI.fq = e.target.value; renderFillList(); }
     else if (k === 'mapQ') { UI.mapQ = e.target.value; if (UI.mapIds) { UI.mapIds = null; const bn = document.querySelector('#idban'); if (bn) bn.remove(); } renderCab(); }
   });
   document.addEventListener('change', e => {
