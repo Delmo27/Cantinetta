@@ -126,6 +126,12 @@ nav button.on{color:var(--gold)}
 #toast{position:fixed;left:50%;bottom:calc(100px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#e8d9b5;color:#1a1410;padding:10px 16px;border-radius:12px;font-weight:600;z-index:80;opacity:0;pointer-events:none;transition:opacity .25s;max-width:90%;text-align:center}
 #toast.on{opacity:1}
 .empty{color:var(--mut);text-align:center;padding:30px 10px}
+.clk{cursor:pointer}
+.bar.clk:active,.cols div.clk:active,.kpi.clk:active,.legend span.clk:active{opacity:.55}
+.legend span.clk{padding:4px 0}
+a.btn{text-decoration:none}
+details.rsd{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:4px 0 14px}
+details.rsd summary{cursor:pointer;color:var(--gold);font-weight:600}
 #login{position:fixed;inset:0;z-index:100;background:var(--bg);display:none;align-items:center;justify-content:center;padding:24px}
 #login.on{display:flex}
 #login .box{width:100%;max-width:380px}
@@ -148,7 +154,7 @@ nav button.on{color:var(--gold)}
 
 <script>
 /* ============ DATI INIZIALI ============ */
-const SEED_SHELVES = [{n:1,p:6,r:6},{n:2,p:6,r:6},{n:3,p:6,r:0},{n:4,p:6,r:6},{n:5,p:6,r:6},{n:6,p:3,r:3}];
+const SEED_SHELVES = [{n:1,lv:[{p:3,r:3},{p:3,r:3}]},{n:2,lv:[{p:3,r:3},{p:3,r:3}]},{n:3,lv:[{p:3,r:0},{p:3,r:0}]},{n:4,lv:[{p:3,r:3},{p:3,r:3}]},{n:5,lv:[{p:3,r:3},{p:3,r:3}]},{n:6,lv:[{p:3,r:3}]}];
 
 /* ============ UTILITA ============ */
 const $ = s => document.querySelector(s);
@@ -228,14 +234,14 @@ function logEv(b, type, testo) { if (!Cloud) return; Cloud.addEvent({ bottleId: 
 function deriveEvents(old, nw) {
   if (!old) {
     logEv(nw, 'acquistata', [nw.prezzo ? eur(nw.prezzo) : '', nw.dataAcquisto ? fmtDate(nw.dataAcquisto) : ''].filter(Boolean).join(' · '));
-    if (nw.stato === 'In cantina' && validSlot(nw)) logEv(nw, 'collocata', slotLabel(nw.piano, nw.posto));
+    if (nw.stato === 'In cantina' && validSlot(nw)) logEv(nw, 'collocata', slotLabel(nw));
     return;
   }
   if (old.stato !== nw.stato) {
-    if (nw.stato === 'In cantina') logEv(nw, 'rimessa', nw.piano ? slotLabel(nw.piano, nw.posto) : '');
+    if (nw.stato === 'In cantina') logEv(nw, 'rimessa', validSlot(nw) ? slotLabel(nw) : '');
     else logEv(nw, { 'Bevuta':'bevuta', 'Regalata':'regalata', 'Persa/Difettosa':'persa' }[nw.stato] || 'bevuta', [nw.dataConsumo ? fmtDate(nw.dataConsumo) : '', nw.voto != null ? 'voto ' + nw.voto + '/10' : '', nw.note || ''].filter(Boolean).join(' · '));
-  } else if (nw.stato === 'In cantina' && nw.piano && (old.piano !== nw.piano || old.posto !== nw.posto)) {
-    logEv(nw, 'spostata', (old.piano && shelf(old.piano) && old.posto <= capOf(shelf(old.piano)) ? slotShort(old.piano, old.posto) : 'senza posto') + ' → ' + slotShort(nw.piano, nw.posto));
+  } else if (nw.stato === 'In cantina' && validSlot(nw) && (old.piano !== nw.piano || old.liv !== nw.liv || old.fila !== nw.fila || old.pos !== nw.pos)) {
+    logEv(nw, 'spostata', (validSlot(old) ? slotShort(old) : 'senza posto') + ' → ' + slotShort(nw));
   }
 }
 function save() {
@@ -260,8 +266,8 @@ function save() {
 }
 function startCloud() {
   stopCloud();
-  let gotB = false, gotS = false, lastSig = '';
-  const ready = () => { if (gotB && gotS && !loaded) { loaded = true; render(); if (!localStorage.getItem('cantinetta_cfg2')) { localStorage.setItem('cantinetta_cfg2', '1'); setTimeout(() => openShelves(true), 400); } } };
+  let gotB = false, gotS = false, lastSig = '', oldMap = null;
+  const ready = () => { if (gotB && gotS && !loaded) { loaded = true; if (oldMap || S.bottles.some(b => 'posto' in b && !b.fila)) { suppressEvents = true; try { convBottles(S.bottles, oldMap, S.shelves); syncedShelves = ''; oldMap = null; save(); } finally { suppressEvents = false; } } render(); if (!localStorage.getItem('cantinetta_cfg3')) { localStorage.setItem('cantinetta_cfg3', '1'); setTimeout(() => openShelves(true), 400); } } };
   unsub = Cloud.subscribe({
     onBottles(list, meta) {
       syncInfo = meta || syncInfo;
@@ -271,7 +277,7 @@ function startCloud() {
       if (!loaded) ready(); else if (changed) renderIfIdle(); else renderHeader();
     },
     onShelves(list) {
-      if (list) { list = normSh(list); const ch = sj(list) !== sj(S.shelves); S.shelves = list; syncedShelves = sj(list); gotS = true; if (loaded && ch) renderIfIdle(); }
+      if (list) { const cv = convShelves(list); if (cv.old) oldMap = cv.old; list = cv.shelves; const ch = sj(list) !== sj(S.shelves); S.shelves = list; syncedShelves = sj(list); gotS = true; if (loaded && ch) renderIfIdle(); }
       else { syncedShelves = ''; gotS = true; }
       ready();
     },
@@ -317,39 +323,66 @@ function mat(b) {
 }
 const byFine = (a, b) => (a.fine || 9999) - (b.fine || 9999) || (a.inizio || 0) - (b.inizio || 0);
 const shelf = n => S.shelves.find(s => s.n === n);
-const capOf = sh => (sh.p || 0) + (sh.r || 0);
-const normSh = list => list.map(s => { if (s.p !== undefined) return { n: s.n, p: +s.p || 0, r: +s.r || 0 }; const rows = s.rows || 1, cap = s.cap || 0; if (rows >= 2) { const c = Math.ceil(cap / rows); return { n: s.n, p: c, r: cap - c }; } return { n: s.n, p: cap, r: 0 }; });
-const ROWN = { P: 'fondo verso la porta', R: 'fondo verso il retro' };
-function posInfo(sh, posto) { return posto <= sh.p ? { row: 'P', n: posto } : { row: 'R', n: posto - sh.p }; }
+const LV = ['B', 'A'], LVN = { B: 'basso', A: 'alto' }, FILAN = { P: 'porta', R: 'retro' };
+const capOf = sh => sh.lv.reduce((a, l) => a + l.p + l.r, 0);
+const levelCap = (sh, li) => sh.lv[li] ? sh.lv[li].p + sh.lv[li].r : 0;
+function oldGeo(s) { if (s.p !== undefined) return { p: +s.p || 0, r: +s.r || 0 }; const rows = s.rows || 1, cap = s.cap || 0; if (rows >= 2) { const c = Math.ceil(cap / rows); return { p: c, r: cap - c }; } return { p: cap, r: 0 }; }
+function convShelves(list) {
+  const old = {}, last = list.length;
+  const out = list.map(s => {
+    if (s.lv) return { n: s.n, lv: s.lv.map(l => ({ p: +l.p || 0, r: +l.r || 0 })).filter((l, i) => i === 0 || l.p + l.r > 0).slice(0, 2) };
+    const g = oldGeo(s); old[s.n] = g;
+    if (s.n === last) return { n: s.n, lv: [{ p: g.p, r: g.r }] };
+    return { n: s.n, lv: [{ p: Math.ceil(g.p / 2), r: Math.ceil(g.r / 2) }, { p: Math.floor(g.p / 2), r: Math.floor(g.r / 2) }].filter((l, i) => i === 0 || l.p + l.r > 0) };
+  });
+  return { shelves: out, old: Object.keys(old).length ? old : null };
+}
+function slotsOf(sh) { const o = []; sh.lv.forEach((l, i) => { for (let n = 1; n <= l.p; n++) o.push({ piano: sh.n, liv: LV[i], fila: 'P', pos: n }); for (let n = 1; n <= l.r; n++) o.push({ piano: sh.n, liv: LV[i], fila: 'R', pos: n }); }); return o; }
+function convBottles(bottles, oldMap, shelves) {
+  let n = 0;
+  bottles.forEach(b => {
+    if (b.fila || b.posto === undefined || b.posto === null) { if ('posto' in b && !b.fila) { delete b.posto; n++; } return; }
+    const g = oldMap && oldMap[b.piano], sh = shelves.find(s => s.n === b.piano);
+    let tgt = null;
+    if (g && sh) { const fila = b.posto <= g.p ? 'P' : 'R', idx = b.posto <= g.p ? b.posto : b.posto - g.p; tgt = slotsOf(sh).filter(x => x.fila === fila)[idx - 1] || null; }
+    if (tgt) { b.liv = tgt.liv; b.fila = tgt.fila; b.pos = tgt.pos; }
+    else { b.posPrec = (b.piano || '?') + '-' + b.posto; b.piano = null; b.liv = null; b.fila = null; b.pos = null; }
+    delete b.posto; n++;
+  });
+  return n;
+}
 function shelfName(n) { return 'Ripiano ' + n + (n === 1 ? ' (alto)' : (n === S.shelves.length && n === 6 ? ' (a terra)' : '')); }
-function slotCode(piano, posto) { const sh = shelf(piano); if (!sh) return '?'; const i = posInfo(sh, posto); return piano + i.row + i.n; }
-function slotLabel(piano, posto) { const sh = shelf(piano); if (!sh) return 'Posizione non valida'; const i = posInfo(sh, posto); return shelfName(piano) + ' · ' + ROWN[i.row] + ' · ' + i.n + 'ª da sinistra'; }
-function slotShort(piano, posto) { const sh = shelf(piano); if (!sh) return '?'; const i = posInfo(sh, posto); return 'Rip. ' + piano + ' · ' + i.row + i.n; }
-function orientHint(b) { const sh = shelf(b.piano), i = posInfo(sh, b.posto); return 'Codice <b>' + slotCode(b.piano, b.posto) + '</b> · ' + (i.row === 'P' ? 'dallo sportello vedi il fondo della bottiglia' : 'dallo sportello vedi il collo della bottiglia'); }
+const keyOf = s => s.piano + s.liv + '-' + s.fila + s.pos;
+function parseKey(k) { const m = /^(\d+)([BA])-([PR])(\d+)$/.exec(k || ''); return m ? { piano: +m[1], liv: m[2], fila: m[3], pos: +m[4] } : null; }
+function validSlot(b) { const sh = b.piano && shelf(b.piano); if (!sh || !b.liv || !b.fila || !b.pos) return false; const l = sh.lv[LV.indexOf(b.liv)]; return !!l && b.pos >= 1 && b.pos <= (b.fila === 'P' ? l.p : l.r); }
+const slotCode = s => keyOf(s);
+function slotLabel(s) { const sh = shelf(s.piano); if (!sh) return 'Posizione non valida'; return shelfName(s.piano) + (sh.lv.length > 1 ? ' · livello ' + LVN[s.liv] : '') + ' · fila ' + FILAN[s.fila] + ' · ' + s.pos + 'ª da sinistra'; }
+const slotShort = s => keyOf(s);
+function orientHint(b) { return 'Codice <b>' + slotCode(b) + '</b> · ' + (b.fila === 'P' ? 'dallo sportello vedi il fondo della bottiglia' : 'dallo sportello vedi il collo della bottiglia'); }
 function occupancy() {
   const occ = {}, dup = [];
-  inC().forEach(b => { if (b.piano && b.posto) { const k = b.piano + '-' + b.posto; if (!occ[k]) occ[k] = b; else dup.push(b); } });
+  inC().forEach(b => { if (validSlot(b)) { const k = keyOf(b); if (!occ[k]) occ[k] = b; else dup.push(b); } });
   return { occ, dup };
 }
-function validSlot(b) { const sh = b.piano && shelf(b.piano); return !!(sh && b.posto >= 1 && b.posto <= capOf(sh)); }
-function unplaced() {
-  const { occ } = occupancy();
-  return inC().filter(b => !b.piano || !b.posto || !validSlot(b) || occ[b.piano + '-' + b.posto] !== b);
-}
-function freeSlots() {
-  const { occ } = occupancy(), out = [];
-  S.shelves.forEach(sh => { for (let p = 1; p <= capOf(sh); p++) if (!occ[sh.n + '-' + p]) out.push({ piano: sh.n, posto: p }); });
-  return out;
-}
+function unplaced() { const { occ } = occupancy(); return inC().filter(b => !validSlot(b) || occ[keyOf(b)] !== b); }
+function freeSlots() { const { occ } = occupancy(), out = []; S.shelves.forEach(sh => slotsOf(sh).forEach(s => { if (!occ[keyOf(s)]) out.push(s); })); return out; }
 function suggestSlot(tipo) {
   const free = freeSlots(); if (!free.length) return null;
   const last = S.shelves.length;
   const pref = tipo === 'Rosso' ? [1, 2, 3, 4, 5] : (tipo === 'Bianco' || tipo === 'Rosato' || tipo === 'Dolce/Passito') ? [3, 4, 2, 5, 1] : [5, 4, 3, 2, 1];
   pref.push(last);
-  for (const n of pref) { const f = free.find(s => s.piano === n); if (f) return f; }
+  const order = s => (s.liv === 'B' ? 0 : 100) + (s.fila === 'R' ? 0 : 50) + s.pos;
+  for (const n of pref) { const f = free.filter(s => s.piano === n).sort((a, c) => order(a) - order(c))[0]; if (f) return f; }
   return free[0];
 }
-function blockers() { return []; }
+function blockers(b) {
+  if (!validSlot(b)) return [];
+  const { occ } = occupancy(), out = [], sh = shelf(b.piano);
+  const add = (liv, fila, n) => { const o = occ[keyOf({ piano: b.piano, liv, fila, pos: n })]; if (o && o !== b && !out.includes(o)) out.push(o); };
+  if (b.fila === 'R') { add(b.liv, 'P', b.pos); add(b.liv, 'P', b.pos + 1); }
+  if (b.liv === 'B' && sh.lv.length > 1) { add('A', b.fila, b.pos - 1); add('A', b.fila, b.pos); }
+  return out;
+}
 
 /* ============ ABBINAMENTI ============ */
 const TAGS = ['Aperitivo','Pesce','Crostacei e crudo','Fritto','Salumi','Formaggi','Pasta e risotti','Verdure','Carni bianche','Carne rossa','Brasati e selvaggina','Piccante e asiatico'];
@@ -399,7 +432,7 @@ function serveTemp(b) {
 }
 
 /* ============ UI STATE ============ */
-const UI = { tab:'stasera', occ:'Quotidiana', pTipo:'Qualsiasi', dish:'Nessuno', offset:0, q:'', fType:'Tutti', fMat:'Tutti', sort:'urgenza', gone:false, mapMode:'tipo', mapView:'alto', mapShelf:1, mapQ:'', moving:null };
+const UI = { mapLv:'A', mapIds:null, mapTitle:'', fromList:false, listCtx:null, tab:'stasera', occ:'Quotidiana', pTipo:'Qualsiasi', dish:'Nessuno', offset:0, q:'', fType:'Tutti', fMat:'Tutti', sort:'urgenza', gone:false, mapMode:'tipo', mapView:'alto', mapShelf:1, mapQ:'', moving:null };
 
 function colorOf(b) {
   const m = UI.mapMode;
@@ -434,6 +467,7 @@ function recommend() {
     if (UI.occ === 'Cena tra amici') { if (pr >= 20 && pr <= 60) s += 15; if (pr > 90) s -= 15; }
     if (UI.occ === 'Romantica') { if (isBolle(b.tipo)) { s += 20; why.push('Bollicine: festa a due'); } if (pr >= 40) s += 10; }
     if (UI.occ === 'Speciale') { if (pr >= 60) { s += 40; why.push('Bottiglia importante'); } else if (pr < 30) s -= 20; if (m === 'Attendere') return; }
+    const bl = blockers(b); s -= bl.length * 6; if (bl.length) why.push('Prima togli ' + bl.length + (bl.length === 1 ? ' bottiglia' : ' bottiglie'));
     out.push({ b, s, why, tags });
   });
   return out.sort((a, c) => c.s - a.s);
@@ -456,7 +490,7 @@ function thumb(b) {
   const st = ph ? `background-image:url(${ph})` : `background:${TIPO_COL[b.tipo] || '#888'};color:${ink(TIPO_COL[b.tipo] || '#888')}`;
   return `<div class="th" style="${st}">${ph ? '' : "'" + String(vint(b)).slice(-2)}</div>`;
 }
-function locText(b) { return b.stato === 'In cantina' && validSlot(b) ? slotShort(b.piano, b.posto) : (b.stato === 'In cantina' ? 'Senza posto' : (b.dataConsumo ? fmtDate(b.dataConsumo) : '')); }
+function locText(b) { return b.stato === 'In cantina' ? (validSlot(b) ? slotShort(b) : 'Senza posto') : (b.dataConsumo ? fmtDate(b.dataConsumo) : ''); }
 
 function viewStasera() {
   const list = recommend();
@@ -468,14 +502,14 @@ function viewStasera() {
   <div class="lbl">Cosa mangi</div>${chips('dish', ['Nessuno'].concat(TAGS), UI.dish)}
   <div class="sec"><h2>Te ne propongo ${picks.length}</h2><small>${list.length} candidate</small></div>
   ${picks.length ? picks.map(r => `<div class="rec" data-act="open" data-id="${r.b.id}"><div class="t"><div><h3>${esc(title(r.b))}</h3><div class="sub">${esc(r.b.produttore)} · ${vint(r.b)}</div></div>${badge(mat(r.b))}</div>
-    <div class="pin">${ic('pin', 18)}<span>${validSlot(r.b) ? esc(slotLabel(r.b.piano, r.b.posto)) : 'Posizione non assegnata'}</span></div>
+    <div class="pin">${ic('pin', 18)}<span>${validSlot(r.b) ? esc(slotLabel(r.b)) : 'Posizione non assegnata'}</span></div>${blockers(r.b).length ? `<div class="sub" style="margin-top:6px">Prima togli: ${esc(blockers(r.b).map(title).join(', '))}</div>` : ''}
     <div class="why">${r.why.map(w => `<span>${esc(w)}</span>`).join('')}${r.tags.slice(0, 3).map(t => `<span class="p">${esc(t)}</span>`).join('')}</div></div>`).join('') : '<div class="empty">Nessuna bottiglia adatta con questi filtri. Prova ad allargarli.</div>'}
   ${list.length > 3 ? `<button class="btn sec2" data-act="more">Altre proposte</button>` : ''}
   <div class="sec"><h2>Le prossime da bere</h2><small>per fine finestra</small></div>
   <div class="card" style="padding:4px 12px">${soon.map(rowHtml).join('')}</div>`;
 }
-function rowHtml(b) {
-  return `<div class="row" data-act="open" data-id="${b.id}">${thumb(b)}<div class="m"><b>${esc(title(b))}</b><span>${esc(b.produttore)} · ${vint(b)}${b.regione ? ' · ' + esc(b.regione) : ''}</span></div><div class="r">${b.stato === 'In cantina' ? badge(mat(b)) : `<span class="bd" style="background:#333">${esc(b.stato)}</span>`}<span>${esc(locText(b))}</span></div></div>`;
+function rowHtml(b, act) {
+  return `<div class="row" data-act="${act || 'open'}" data-id="${b.id}">${thumb(b)}<div class="m"><b>${esc(title(b))}</b><span>${esc(b.produttore)} · ${vint(b)}${b.regione ? ' · ' + esc(b.regione) : ''}</span></div><div class="r">${b.stato === 'In cantina' ? badge(mat(b)) : `<span class="bd" style="background:#333">${esc(b.stato)}</span>`}<span>${esc(locText(b))}</span></div></div>`;
 }
 
 function filterList() {
@@ -484,7 +518,7 @@ function filterList() {
   if (UI.fMat !== 'Tutti') l = l.filter(b => mat(b) === UI.fMat);
   if (UI.q.trim()) l = l.filter(b => matches(b, UI.q));
   const s = UI.sort;
-  l.sort((a, b) => s === 'nome' ? title(a).localeCompare(title(b)) : s === 'annata' ? (a.annata || 0) - (b.annata || 0) : s === 'prezzo' ? (b.prezzo || 0) - (a.prezzo || 0) : s === 'posizione' ? ((a.piano || 99) - (b.piano || 99)) || ((a.posto || 99) - (b.posto || 99)) : byFine(a, b));
+  l.sort((a, b) => s === 'nome' ? title(a).localeCompare(title(b)) : s === 'annata' ? (a.annata || 0) - (b.annata || 0) : s === 'prezzo' ? (b.prezzo || 0) - (a.prezzo || 0) : s === 'posizione' ? (a.piano || 99) - (b.piano || 99) || String(a.liv || '').localeCompare(String(b.liv || '')) || String(a.fila || '').localeCompare(String(b.fila || '')) || (a.pos || 99) - (b.pos || 99) : byFine(a, b));
   return l;
 }
 function renderRes() {
@@ -501,37 +535,42 @@ function viewCerca() {
   <div class="sub" id="cnt"></div><div id="res"></div>`;
 }
 
-const DEP = 6.8, BL = { L: 4.0, Lb: 2.4, Ls: 0.6, w: 0.46, nw: 0.14 };
-function shelfW(sh) { const both = sh.p > 0 && sh.r > 0; return both ? Math.max(sh.p, sh.r + 0.5) : Math.max(sh.p, sh.r, 1); }
-function shelfX(sh, row, n) { const both = sh.p > 0 && sh.r > 0; return row === 'P' ? n - 0.5 : (both ? n : n - 0.5); }
-function slotsOf(sh) { const o = []; for (let n = 1; n <= sh.p; n++) o.push({ row: 'P', n, posto: n }); for (let n = 1; n <= sh.r; n++) o.push({ row: 'R', n, posto: sh.p + n }); return o; }
+const DEP = 6.8, BL = { L: 4.0, Lb: 2.4, Ls: 0.6, w: 0.46, nw: 0.14 }, LVDY = 0.8;
+const hasMapFilter = () => !!(UI.mapIds || UI.mapQ.trim());
+const isHit = b => UI.mapIds ? UI.mapIds.includes(b.id) : matches(b, UI.mapQ);
+const lvBoth = l => l.p > 0 && l.r > 0;
+function shelfW(sh) { let w = 1; sh.lv.forEach((l, i) => { const wl = lvBoth(l) ? Math.max(l.p, l.r + 0.5) : Math.max(l.p, l.r); w = Math.max(w, wl + (i === 1 ? 0.5 : 0)); }); return w; }
+function slotX(sh, s) { const li = LV.indexOf(s.liv), l = sh.lv[li]; let x = s.fila === 'P' ? s.pos - 0.5 : (lvBoth(l) ? s.pos : s.pos - 0.5); if (li === 1) x += 0.5; return x; }
 function bottlePath(cx, yb, dir) {
   const { L, Lb, Ls, w, nw } = BL, Y = t => (yb + dir * t).toFixed(3), X = d => (cx + d).toFixed(3);
   return `M${X(-w)} ${Y(0.14)}Q${X(-w)} ${Y(0)} ${X(-w + 0.14)} ${Y(0)}L${X(w - 0.14)} ${Y(0)}Q${X(w)} ${Y(0)} ${X(w)} ${Y(0.14)}L${X(w)} ${Y(Lb)}C${X(w)} ${Y(Lb + 0.4)} ${X(nw)} ${Y(Lb + 0.2)} ${X(nw)} ${Y(Lb + Ls)}L${X(nw)} ${Y(L)}L${X(-nw)} ${Y(L)}L${X(-nw)} ${Y(Lb + Ls)}C${X(-nw)} ${Y(Lb + 0.2)} ${X(-w)} ${Y(Lb + 0.4)} ${X(-w)} ${Y(Lb)}Z`;
 }
 function renderCab() {
-  const q = UI.mapQ.trim(), all = inC(); let hits = 0; const hitsBy = {};
-  if (q) all.forEach(b => { if (matches(b, q)) { hits++; hitsBy[b.piano] = (hitsBy[b.piano] || 0) + 1; } });
-  const h = $('#hits'); if (h) h.textContent = q ? (hits ? hits + (hits === 1 ? ' bottiglia evidenziata' : ' bottiglie evidenziate') : 'Nessuna trovata') : '';
+  const on = hasMapFilter(), all = inC(); let hits = 0; const hb = {};
+  if (on) all.forEach(b => { if (validSlot(b) && isHit(b)) { hits++; hb[b.piano] = (hb[b.piano] || 0) + 1; hb[b.piano + b.liv] = (hb[b.piano + b.liv] || 0) + 1; } });
+  const h = $('#hits'); if (h) h.textContent = on ? (hits ? hits + (hits === 1 ? ' bottiglia evidenziata' : ' bottiglie evidenziate') : 'Nessuna trovata') : '';
   if (UI.mapView === '3d') { const cv = $('#cv3'); if (cv) { bind3D(cv); draw3D(); } return; }
   if (!shelf(UI.mapShelf)) UI.mapShelf = S.shelves[0] ? S.shelves[0].n : 1;
-  const { occ } = occupancy(), sh = shelf(UI.mapShelf);
-  $('#shsel').innerHTML = `<div class="chips">${S.shelves.map(s => { const used = slotsOf(s).filter(x => occ[s.n + '-' + x.posto]).length; return `<button class="chip ${s.n === sh.n ? 'on' : ''}" data-act="shelfsel" data-v="${s.n}">Rip. ${s.n} · ${used}/${capOf(s)}${hitsBy[s.n] ? ' ●' + hitsBy[s.n] : ''}</button>`; }).join('')}</div>`;
+  const sh = shelf(UI.mapShelf); if (!sh) { $('#cab').innerHTML = '<div class="empty">Nessun ripiano configurato</div>'; return; }
+  if (!sh.lv[LV.indexOf(UI.mapLv)]) UI.mapLv = sh.lv.length > 1 ? 'A' : 'B';
+  const { occ } = occupancy();
+  $('#shsel').innerHTML = `<div class="chips">${S.shelves.map(s => { const used = slotsOf(s).filter(x => occ[keyOf(x)]).length; return `<button class="chip ${s.n === sh.n ? 'on' : ''}" data-act="shelfsel" data-v="${s.n}">Rip. ${s.n} · ${used}/${capOf(s)}${hb[s.n] ? ' ●' + hb[s.n] : ''}</button>`; }).join('')}</div>`
+    + (sh.lv.length > 1 ? `<div class="chips">${['A', 'B'].map(k => { const used = slotsOf(sh).filter(x => x.liv === k && occ[keyOf(x)]).length; return `<button class="chip ${UI.mapLv === k ? 'on' : ''}" data-act="lvsel" data-v="${k}">Livello ${LVN[k]} · ${sh.n}${k} · ${used}/${levelCap(sh, LV.indexOf(k))}${hb[sh.n + k] ? ' ●' + hb[sh.n + k] : ''}</button>`; }).join('')}</div>` : '');
   const W = shelfW(sh); let o = `<svg viewBox="-0.35 -1.15 ${(W + 0.7).toFixed(2)} ${(DEP + 2.5).toFixed(2)}" width="100%" style="display:block;font-family:inherit">`;
   o += `<rect x="-0.2" y="-0.05" width="${W + 0.4}" height="${DEP + 0.1}" rx=".25" fill="#241c17" stroke="#4a3b30" stroke-width=".06"/>`;
   o += `<rect x="-0.2" y="${DEP + 0.08}" width="${W + 0.4}" height=".09" rx=".04" fill="#c9a96e" opacity=".55"/>`;
   o += `<text x="${W / 2}" y="-0.82" font-size=".4" fill="#6f6359" text-anchor="middle" letter-spacing=".12">RETRO</text><text x="${W / 2}" y="${DEP + 1.2}" font-size=".4" fill="#c9a96e" text-anchor="middle" letter-spacing=".12" opacity=".8">SPORTELLO</text>`;
-  slotsOf(sh).forEach(sl => {
-    const x = shelfX(sh, sl.row, sl.n), yb = sl.row === 'P' ? DEP : 0, dir = sl.row === 'P' ? -1 : 1, d = bottlePath(x, yb, dir), b = occ[sh.n + '-' + sl.posto];
-    const ny = sl.row === 'P' ? DEP + 0.72 : -0.3, attr = `data-act="slot" data-s="${sh.n}" data-p="${sl.posto}" style="cursor:pointer`;
+  slotsOf(sh).filter(x => x.liv === UI.mapLv).forEach(sl => {
+    const x = slotX(sh, sl), yb = sl.fila === 'P' ? DEP : 0, dir = sl.fila === 'P' ? -1 : 1, d = bottlePath(x, yb, dir), b = occ[keyOf(sl)];
+    const ny = sl.fila === 'P' ? DEP + 0.72 : -0.3, attr = `data-act="slot" data-k="${keyOf(sl)}" style="cursor:pointer`;
     if (!b) {
       o += `<path d="${d}" fill="${UI.moving ? '#c9a96e22' : '#ffffff05'}" stroke="${UI.moving ? '#c9a96e' : '#5a4a3d'}" stroke-width=".05" stroke-dasharray=".14 .1" ${attr}"/>`;
-      o += `<text x="${x}" y="${ny}" font-size=".34" fill="#6f6359" text-anchor="middle" pointer-events="none">${sl.row}${sl.n}</text>`;
+      o += `<text x="${x}" y="${ny}" font-size=".34" fill="#6f6359" text-anchor="middle" pointer-events="none">${sl.fila}${sl.pos}</text>`;
     } else {
-      const fill = colorOf(b), ring = UI.mapMode === 'mat' ? shade(fill, -0.35) : MAT[mat(b)].bg, hit = q && matches(b, q), dim = q && !hit, mv = UI.moving === b.id;
+      const fill = colorOf(b), ring = UI.mapMode === 'mat' ? shade(fill, -0.35) : MAT[mat(b)].bg, hit = on && isHit(b), dim = on && !hit, mv = UI.moving === b.id;
       o += `<path d="${d}" fill="${fill}" stroke="${mv ? '#fff' : hit ? '#fff' : ring}" stroke-width="${mv || hit ? '.13' : '.08'}" ${attr};${dim ? 'opacity:.18;' : ''}${hit ? 'filter:drop-shadow(0 0 5px #c9a96e);' : ''}"/>`;
       o += `<text x="${x}" y="${(yb + dir * 1.0).toFixed(2)}" font-size=".36" font-weight="700" fill="${ink(fill)}" text-anchor="middle" dominant-baseline="middle" pointer-events="none" ${dim ? 'opacity=".25"' : ''}>${b.annata ? "'" + String(b.annata).slice(-2) : 'NV'}</text>`;
-      o += `<text x="${x}" y="${ny}" font-size=".34" fill="${hit ? '#c9a96e' : '#a89b8d'}" font-weight="${hit ? 700 : 400}" text-anchor="middle" pointer-events="none">${sl.row}${sl.n}</text>`;
+      o += `<text x="${x}" y="${ny}" font-size=".34" fill="${hit ? '#c9a96e' : '#a89b8d'}" font-weight="${hit ? 700 : 400}" text-anchor="middle" pointer-events="none">${sl.fila}${sl.pos}</text>`;
     }
   });
   $('#cab').innerHTML = o + '</svg>';
@@ -547,7 +586,7 @@ function draw3D() {
   const rc0 = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1), W = Math.round(rc0.width) || 340, H = Math.round(rc0.height) || 460;
   if (cv.width !== W * dpr || cv.height !== H * dpr) { cv.width = W * dpr; cv.height = H * dpr; }
   const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
-  const N = S.shelves.length, Wc = Math.max(6.5, ...S.shelves.map(shelfW)), cy = N * GAP3 / 2, cz = DEP / 2, q = UI.mapQ.trim();
+  const N = S.shelves.length, Wc = Math.max(6.5, ...S.shelves.map(shelfW)), cy = N * GAP3 / 2, cz = DEP / 2, on = hasMapFilter();
   const cyw = Math.cos(V3.yaw), syw = Math.sin(V3.yaw), cp = Math.cos(V3.pitch), sp = Math.sin(V3.pitch), dist = 30, f = dist * Math.min(H / (N * GAP3 + 3.6), W / 10.5) * V3.zoom;
   const P = (x, y, z) => { y -= cy; z -= cz; const x1 = x * cyw + z * syw, z1 = -x * syw + z * cyw, y2 = y * cp - z1 * sp, z2 = y * sp + z1 * cp, d = dist - z2, s = f / d; return { X: W / 2 + x1 * s, Y: H / 2 - y2 * s, d, s }; };
   const quad = (pts, fill, stroke) => { ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p.X, p.Y) : ctx.moveTo(p.X, p.Y)); ctx.closePath(); if (fill) { ctx.fillStyle = fill; ctx.fill(); } if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1; ctx.stroke(); } };
@@ -563,13 +602,13 @@ function draw3D() {
     quad([P(-Wc / 2, yb, DEP), P(Wc / 2, yb, DEP), P(Wc / 2, yb - 0.16, DEP), P(-Wc / 2, yb - 0.16, DEP)], 'rgba(110,78,50,.95)', null);
     const items = [];
     slotsOf(sh).forEach(sl => {
-      const b = occ[sh.n + '-' + sl.posto]; if (!b) return;
-      const x = ox + shelfX(sh, sl.row, sl.n), y = yb + BL.w + 0.02, base = sl.row === 'P' ? DEP - 0.15 : 0.15, dr = sl.row === 'P' ? -1 : 1;
+      const b = occ[keyOf(sl)]; if (!b) return;
+      const x = ox + slotX(sh, sl), y = yb + BL.w + 0.02 + LV.indexOf(sl.liv) * LVDY, base = sl.fila === 'P' ? DEP - 0.15 : 0.15, dr = sl.fila === 'P' ? -1 : 1;
       const A = [0, BL.Lb, BL.Lb + BL.Ls, BL.L].map(t => P(x, y, base + dr * t));
       items.push({ b, A, d: (A[0].d + A[3].d) / 2 });
     });
     items.sort((a, c) => c.d - a.d).forEach(it => {
-      const hit = q && matches(it.b, q), dim = q && !hit;
+      const hit = on && isHit(it.b), dim = on && !hit;
       drawBottle3(ctx, it.A, colorOf(it.b), dim ? .18 : 1, hit);
       V3.hit.push({ id: it.b.id, a: it.A[0], z: it.A[3], r: BL.w * it.A[0].s, d: it.d });
     });
@@ -580,7 +619,6 @@ function draw3D() {
 function drawBottle3(ctx, A, col, alpha, hl) {
   const [a0, a1, a2, a3] = A, dx = a3.X - a0.X, dy = a3.Y - a0.Y, L = Math.hypot(dx, dy), r0 = BL.w * a0.s, r1 = BL.w * a1.s, r2 = BL.nw * a2.s, r3 = BL.nw * a3.s;
   ctx.save(); ctx.globalAlpha = alpha; if (hl) { ctx.shadowColor = '#fff'; ctx.shadowBlur = 16; }
-  const near = a0.d <= a3.d ? a0 : a3, rn = near === a0 ? r0 : r3;
   if (L < r0 * 1.7) {
     const Wd = [BL.w, BL.w, BL.nw, BL.nw], T = [0, BL.Lb, BL.Lb + BL.Ls, BL.L], pts = [];
     for (let k = 0; k <= 16; k++) { const tt = BL.L * k / 16, i = tt <= T[1] ? 0 : tt <= T[2] ? 1 : 2, u = (tt - T[i]) / (T[i + 1] - T[i]), a = A[i], b = A[i + 1]; pts.push({ X: a.X + (b.X - a.X) * u, Y: a.Y + (b.Y - a.Y) * u, d: a.d + (b.d - a.d) * u, s: a.s + (b.s - a.s) * u, w: Wd[i] + (Wd[i + 1] - Wd[i]) * u }); }
@@ -603,7 +641,7 @@ function tap3D(e, cv) {
     const vx = h.z.X - h.a.X, vy = h.z.Y - h.a.Y, l2 = vx * vx + vy * vy || 1, t = clamp(((X - h.a.X) * vx + (Y - h.a.Y) * vy) / l2, 0, 1), d = Math.hypot(X - (h.a.X + vx * t), Y - (h.a.Y + vy * t));
     if (d <= h.r + 5 && (!best || h.d < best.d)) best = h;
   });
-  if (best) openBottle(best.id);
+  if (best) { UI.fromList = false; openBottle(best.id); }
 }
 function bind3D(cv) {
   if (cv._b) return; cv._b = true;
@@ -630,6 +668,7 @@ function legendHtml() {
 function viewMappa() {
   const mv = UI.moving && getB(UI.moving), un = unplaced(), alto = UI.mapView !== '3d';
   return `${mv ? `<div class="banner"><span>Tocca il nuovo posto per <b>${esc(title(mv))}</b></span><button data-act="cancelMove">Annulla</button></div>` : ''}
+  ${UI.mapIds ? `<div class="banner" id="idban"><span>In evidenza: <b>${esc(UI.mapTitle || 'selezione')}</b> (${UI.mapIds.length})</span><button data-act="clearIds">Togli</button></div>` : ''}
   <input data-bind="mapQ" placeholder="Evidenzia: Barolo, Borgogna, Chardonnay…" value="${esc(UI.mapQ)}" autocomplete="off">
   <div class="sub" id="hits" style="margin:6px 2px 2px;color:var(--gold)"></div>
   ${chips('mapView', ['Dall\'alto', '3D'], alto ? 'Dall\'alto' : '3D').replace(/data-act="set" data-k="mapView"/g, 'data-act="mview"')}
@@ -638,19 +677,47 @@ function viewMappa() {
     : `<div id="cab"><canvas id="cv3" style="width:100%;height:520px;display:block;touch-action:none;border-radius:16px;background:radial-gradient(#201915,#120f0d);border:2px solid #3b2f27"></canvas></div>
        <div class="btns" style="grid-template-columns:repeat(3,1fr);margin-top:10px"><button class="btn sec2" data-act="v3" data-v="front">Frontale</button><button class="btn sec2" data-act="v3" data-v="tq">3/4</button><button class="btn sec2" data-act="v3" data-v="side">Di lato</button></div>`}
   <div class="legend" id="leg">${legendHtml()}</div>
-  <div class="note">${alto ? '<b>P</b> = fondo verso la porta, <b>R</b> = fondo verso il retro. I numeri crescono da sinistra a destra, guardando dallo sportello. Tocca una bottiglia per la scheda, un posto vuoto per aggiungerne una.' : 'Trascina per ruotare, pizzica per ingrandire, tocca una bottiglia per aprirla. Per spostare una bottiglia usa la vista «Dall\'alto».'}</div>
-  ${un.length ? `<div class="sec"><h2>Da riposizionare</h2><small>${un.length}</small></div><div class="sub" style="margin:-4px 0 6px">Apri la bottiglia e tocca «Sposta» per assegnarle un posto.</div><div class="card" style="padding:4px 12px">${un.map(rowHtml).join('')}</div>` : ''}`;
+  <div class="note">${alto ? '<b>Codice</b> = ripiano + livello (<b>B</b> basso, <b>A</b> alto) + fila (<b>P</b> fondo verso lo sportello, <b>R</b> fondo verso il retro) + numero da sinistra, guardando dallo sportello. Esempio: <b>4A-P3</b>. Tocca una bottiglia per la scheda, un posto vuoto per aggiungerne una.' : 'Trascina per ruotare, pizzica per ingrandire, tocca una bottiglia per aprirla. Per spostare una bottiglia usa la vista «Dall\'alto».'}</div>
+  ${un.length ? `<div class="sec"><h2>Da riposizionare</h2><small>${un.length}</small></div><div class="sub" style="margin:-4px 0 6px">Apri la bottiglia e tocca «Sposta» per assegnarle un posto.</div><div class="card" style="padding:4px 12px">${un.map(b => rowHtml(b)).join('')}</div>` : ''}`;
 }
 
 /* ============ STATISTICHE ============ */
-function bars(rows, fmt) {
+function bars(rows, fmt, key) {
   const mx = Math.max(1, ...rows.map(r => r.v));
-  return rows.map(r => `<div class="bar"><span class="n">${esc(r.l)}</span><div class="tr"><i style="width:${Math.max(3, r.v / mx * 100)}%;background:${r.c || 'var(--gold)'}"></i></div><span class="v">${fmt ? fmt(r.v) : r.v}</span></div>`).join('');
+  return rows.map(r => `<div class="bar ${key ? 'clk' : ''}" ${key ? `data-act="stat" data-k="${key}" data-v="${esc(String(r.k !== undefined ? r.k : r.l))}"` : ''}><span class="n">${esc(r.l)}</span><div class="tr"><i style="width:${Math.max(3, r.v / mx * 100)}%;background:${r.c || 'var(--gold)'}"></i></div><span class="v">${fmt ? fmt(r.v) : r.v}</span></div>`).join('');
 }
 function countBy(arr, fn) { const m = {}; arr.forEach(x => { const k = fn(x); if (k) m[k] = (m[k] || 0) + 1; }); return Object.entries(m).sort((a, b) => b[1] - a[1]); }
-function colsChart(items) {
+function colsChart(items, key) {
   const mx = Math.max(1, ...items.map(i => i[1]));
-  return `<div class="cols">${items.map(i => `<div><em>${i[1] || ''}</em><i style="height:${i[1] / mx * 78}%"></i><span>${esc(i[0])}</span></div>`).join('')}</div>`;
+  return `<div class="cols">${items.map(i => `<div class="${i[1] ? 'clk' : ''}" ${i[1] ? `data-act="stat" data-k="${key}" data-v="${esc(String(i[2]))}"` : ''}><em>${i[1] || ''}</em><i style="height:${i[1] / mx * 78}%"></i><span>${esc(i[0])}</span></div>`).join('')}</div>`;
+}
+function statSel(k, v) {
+  const c = inC(), g = outC(), sortC = a => a.slice().sort(byFine), sortG = a => a.slice().sort((x, y) => String(y.dataConsumo || '').localeCompare(String(x.dataConsumo || '')));
+  let t = '', l = [];
+  if (k === 'all') { t = 'Bottiglie in cantina'; l = sortC(c); }
+  else if (k === 'valore') { t = 'Dalla più costosa'; l = c.filter(b => b.prezzo).sort((a, b) => b.prezzo - a.prezzo); }
+  else if (k === 'pronte') { t = 'Pronte da bere oggi'; l = sortC(c.filter(b => ['Pronto', 'Al meglio', 'Da bere presto', 'Oltre finestra'].includes(mat(b)))); }
+  else if (k === 'bevute') { t = 'Bevute registrate'; l = sortG(g.filter(b => b.stato === 'Bevuta')); }
+  else if (k === 'voto') { t = 'Bevute con voto'; l = g.filter(b => b.stato === 'Bevuta' && b.voto != null).sort((a, b) => b.voto - a.voto); }
+  else if (k === 'tipo') { t = v; l = sortC(c.filter(b => b.tipo === v)); }
+  else if (k === 'mat') { t = v; l = sortC(c.filter(b => mat(b) === v)); }
+  else if (k === 'fine') { t = 'Finestra fino al ' + v; l = sortC(c.filter(b => String(b.fine) === v)); }
+  else if (k === 'paese') { t = v; l = sortC(c.filter(b => b.paese === v)); }
+  else if (k === 'regione') { t = v; l = sortC(c.filter(b => b.regione === v)); }
+  else if (k === 'annata') { t = 'Annata ' + v; l = sortC(c.filter(b => String(b.annata) === v)); }
+  else if (k === 'prezzo') { const i = Math.max(0, PREZZO_B.findIndex(p => p.l === v)), lo = i > 0 ? PREZZO_B[i - 1].max : 0, hi = PREZZO_B[i].max; t = 'Fascia ' + v; l = c.filter(b => (b.prezzo || 0) >= lo && (b.prezzo || 0) < hi).sort((a, b) => (b.prezzo || 0) - (a.prezzo || 0)); }
+  else if (k === 'vitigno') { t = v; l = sortC(c.filter(b => (b.vitigni || '').split(',').some(x => norm(x.trim()) === norm(v)))); }
+  else if (k === 'produttore') { t = v; l = sortC(c.filter(b => b.produttore === v)); }
+  else if (k === 'ripiano') { t = 'Ripiano ' + v; l = c.filter(b => String(b.piano) === v).sort((a, b) => keyOf(a).localeCompare(keyOf(b))); }
+  else if (k === 'stato') { t = v; l = sortG(g.filter(b => b.stato === v)); }
+  return { t, l };
+}
+function openStat(k, v) {
+  const { t, l } = statSel(k, v); UI.listCtx = { k, v };
+  const inCel = l.length > 0 && l.every(b => b.stato === 'In cantina'), tot = l.reduce((a, b) => a + (b.prezzo || 0), 0);
+  openSheet(`<h2>${esc(t)}</h2><div class="sub" style="margin:3px 0 12px">${l.length} ${l.length === 1 ? 'bottiglia' : 'bottiglie'}${inCel && tot ? ' · ' + eur(tot) : ''}</div>
+  ${inCel ? `<button class="btn sec2" data-act="listmap" style="margin-bottom:10px">Evidenzia nella mappa</button>` : ''}
+  <div class="card" style="padding:4px 12px">${l.length ? l.map(b => rowHtml(b, 'openL')).join('') : '<div class="empty">Nessuna bottiglia</div>'}</div>`);
 }
 function viewStats() {
   const c = inC(), g = outC(), tot = c.reduce((a, b) => a + (b.prezzo || 0), 0);
@@ -662,30 +729,30 @@ function viewStats() {
   const topReg = reg[0], share = topReg ? Math.round(topReg[1] / c.length * 100) : 0;
   const ann = {}; c.forEach(b => { if (b.annata) ann[b.annata] = (ann[b.annata] || 0) + 1; });
   const ys = Object.keys(ann).map(Number); const y0 = ys.length ? Math.min(...ys) : YEAR, y1 = ys.length ? Math.max(...ys) : YEAR;
-  const annItems = []; for (let y = Math.max(y0, y1 - 12); y <= y1; y++) annItems.push([String(y).slice(2), ann[y] || 0]);
+  const annItems = []; for (let y = Math.max(y0, y1 - 12); y <= y1; y++) annItems.push([String(y).slice(2), ann[y] || 0, y]);
   const fineMap = {}; c.forEach(b => { if (b.fine) fineMap[b.fine] = (fineMap[b.fine] || 0) + 1; });
-  const fy = Object.keys(fineMap).map(Number); const fineItems = []; if (fy.length) for (let y = Math.min(YEAR, ...fy); y <= Math.min(Math.max(...fy), YEAR + 14); y++) fineItems.push([String(y).slice(2), fineMap[y] || 0]);
-  const fasce = PREZZO_B.map(p => ({ l: p.l, v: c.filter(b => (b.prezzo || 0) < p.max && (b.prezzo || 0) >= (PREZZO_B[PREZZO_B.indexOf(p) - 1]?.max || 0)).length, c: p.c }));
+  const fy = Object.keys(fineMap).map(Number); const fineItems = []; if (fy.length) for (let y = Math.min(YEAR, ...fy); y <= Math.min(Math.max(...fy), YEAR + 14); y++) fineItems.push([String(y).slice(2), fineMap[y] || 0, y]);
+  const fasce = PREZZO_B.map((p, i) => ({ l: p.l, v: c.filter(b => (b.prezzo || 0) < p.max && (b.prezzo || 0) >= (i > 0 ? PREZZO_B[i - 1].max : 0)).length, c: p.c }));
   const vit = {}; c.forEach(b => (b.vitigni || '').split(',').map(s => s.trim()).filter(Boolean).forEach(v => { const k = v.charAt(0).toUpperCase() + v.slice(1).toLowerCase(); vit[k] = (vit[k] || 0) + 1; }));
   const vitTop = Object.entries(vit).sort((a, b) => b[1] - a[1]).slice(0, 8);
   const prod = countBy(c, b => b.produttore).filter(x => x[1] >= 2).slice(0, 6);
-  const shelves = S.shelves.map(sh => ({ l: 'Ripiano ' + sh.n, v: c.filter(b => b.piano === sh.n).length, cap: capOf(sh) }));
+  const shelves = S.shelves.map(sh => ({ l: 'Ripiano ' + sh.n, k: sh.n, v: c.filter(b => b.piano === sh.n).length, cap: capOf(sh) }));
   const pronte = c.filter(b => ['Pronto','Al meglio','Da bere presto','Oltre finestra'].includes(mat(b))).length;
   const care = c.filter(b => b.prezzo).sort((a, b) => b.prezzo - a.prezzo)[0];
-  return `<div class="kpis"><div class="kpi"><b>${c.length}</b><small>bottiglie in cantina</small></div><div class="kpi"><b>${eur(tot)}</b><small>valore stimato (prezzo d'acquisto)</small></div>
-  <div class="kpi"><b>${eur(c.length ? tot / c.length : 0)}</b><small>prezzo medio</small></div><div class="kpi"><b>${pronte}</b><small>pronte da bere oggi</small></div>
-  <div class="kpi"><b>${drunk.length}</b><small>bevute registrate</small></div><div class="kpi"><b>${vm}</b><small>voto medio (0–10)</small></div></div>
+  const K = (k, val, lab) => `<div class="kpi clk" data-act="stat" data-k="${k}"><b>${val}</b><small>${lab}</small></div>`;
+  return `<div class="note" style="margin-bottom:10px">Tocca un numero, una barra o una colonna per vedere le bottiglie.</div>
+  <div class="kpis">${K('all', c.length, 'bottiglie in cantina')}${K('valore', eur(tot), "valore stimato (prezzo d'acquisto)")}${K('valore', eur(c.length ? tot / c.length : 0), 'prezzo medio')}${K('pronte', pronte, 'pronte da bere oggi')}${K('bevute', drunk.length, 'bevute registrate')}${K('voto', vm, 'voto medio (0–10)')}</div>
   ${topReg ? `<div class="ins">Il <b>${share}%</b> della cantina è ${esc(topReg[0])} (${topReg[1]} bottiglie)${reg[1] ? `, poi ${esc(reg[1][0])} con ${reg[1][1]}` : ''}.${care ? ` La bottiglia più costosa è ${esc(title(care))} (${eur(care.prezzo)}).` : ''}</div>` : ''}
-  <div class="sec"><h2>Per tipo</h2></div><div class="card">${bars(tipo)}</div>
-  <div class="sec"><h2>Stato di maturità</h2></div><div class="card"><div class="stack">${matL.map(x => `<i style="width:${x.v / c.length * 100}%;background:${MAT[x.m].bg}"></i>`).join('')}</div><div class="legend" style="margin:6px 0 0">${matL.map(x => `<span><u style="background:${MAT[x.m].bg}"></u>${x.m}: ${x.v}</span>`).join('')}</div></div>
-  <div class="sec"><h2>Quando le berrai</h2><small>bottiglie per anno di fine finestra</small></div><div class="card">${colsChart(fineItems)}</div>
-  <div class="sec"><h2>Paesi e regioni</h2></div><div class="card">${bars(paese.map(p => ({ l: p[0], v: p[1], c: PAESE_COL[p[0]] || PAESE_COL['Altro'] })))}<div style="height:10px"></div>${bars(reg.slice(0, 8).map(r => ({ l: r[0], v: r[1] })))}</div>
-  <div class="sec"><h2>Annate</h2></div><div class="card">${colsChart(annItems)}<div class="sub">${c.filter(b => !b.annata).length ? c.filter(b => !b.annata).length + ' bottiglie multi-annata/NV non incluse' : ''}</div></div>
-  <div class="sec"><h2>Fasce di prezzo</h2></div><div class="card">${bars(fasce)}</div>
-  <div class="sec"><h2>Vitigni più presenti</h2></div><div class="card">${bars(vitTop.map(v => ({ l: v[0], v: v[1] })))}</div>
-  ${prod.length ? `<div class="sec"><h2>Produttori ricorrenti</h2></div><div class="card">${bars(prod.map(v => ({ l: v[0], v: v[1] })))}</div>` : ''}
-  <div class="sec"><h2>Occupazione ripiani</h2></div><div class="card">${bars(shelves.map(s => ({ l: s.l, v: s.v })), v => v)}<div class="sub">Capacità: ${shelves.map(s => s.cap).join(' · ')}</div></div>
-  <div class="sec"><h2>Storico</h2></div><div class="card"><div class="legend" style="margin:0 0 6px"><span>Bevute: ${drunk.length}</span><span>Regalate: ${g.filter(b => b.stato === 'Regalata').length}</span><span>Perse: ${g.filter(b => b.stato === 'Persa/Difettosa').length}</span></div>${g.length ? g.slice().sort((a, b) => String(b.dataConsumo || '').localeCompare(String(a.dataConsumo || ''))).slice(0, 5).map(rowHtml).join('') : '<div class="empty">Ancora nulla</div>'}</div>`;
+  <div class="sec"><h2>Per tipo</h2></div><div class="card">${bars(tipo, null, 'tipo')}</div>
+  <div class="sec"><h2>Stato di maturità</h2></div><div class="card"><div class="stack">${matL.map(x => `<i class="clk" data-act="stat" data-k="mat" data-v="${x.m}" style="width:${x.v / c.length * 100}%;background:${MAT[x.m].bg}"></i>`).join('')}</div><div class="legend" style="margin:6px 0 0">${matL.map(x => `<span class="clk" data-act="stat" data-k="mat" data-v="${x.m}"><u style="background:${MAT[x.m].bg}"></u>${x.m}: ${x.v}</span>`).join('')}</div></div>
+  <div class="sec"><h2>Quando le berrai</h2><small>bottiglie per anno di fine finestra</small></div><div class="card">${colsChart(fineItems, 'fine')}</div>
+  <div class="sec"><h2>Paesi e regioni</h2></div><div class="card">${bars(paese.map(p => ({ l: p[0], v: p[1], c: PAESE_COL[p[0]] || PAESE_COL['Altro'] })), null, 'paese')}<div style="height:10px"></div>${bars(reg.slice(0, 8).map(r => ({ l: r[0], v: r[1] })), null, 'regione')}</div>
+  <div class="sec"><h2>Annate</h2></div><div class="card">${colsChart(annItems, 'annata')}<div class="sub">${c.filter(b => !b.annata).length ? c.filter(b => !b.annata).length + ' bottiglie multi-annata/NV non incluse' : ''}</div></div>
+  <div class="sec"><h2>Fasce di prezzo</h2></div><div class="card">${bars(fasce, null, 'prezzo')}</div>
+  <div class="sec"><h2>Vitigni più presenti</h2></div><div class="card">${bars(vitTop.map(v => ({ l: v[0], v: v[1] })), null, 'vitigno')}</div>
+  ${prod.length ? `<div class="sec"><h2>Produttori ricorrenti</h2></div><div class="card">${bars(prod.map(v => ({ l: v[0], v: v[1] })), null, 'produttore')}</div>` : ''}
+  <div class="sec"><h2>Occupazione ripiani</h2></div><div class="card">${bars(shelves.map(s => ({ l: s.l, k: s.k, v: s.v })), v => v, 'ripiano')}<div class="sub">Capacità: ${shelves.map(s => s.cap).join(' · ')}</div></div>
+  <div class="sec"><h2>Storico</h2></div><div class="card"><div class="legend" style="margin:0 0 6px"><span class="clk" data-act="stat" data-k="stato" data-v="Bevuta">Bevute: ${drunk.length}</span><span class="clk" data-act="stat" data-k="stato" data-v="Regalata">Regalate: ${g.filter(b => b.stato === 'Regalata').length}</span><span class="clk" data-act="stat" data-k="stato" data-v="Persa/Difettosa">Perse: ${g.filter(b => b.stato === 'Persa/Difettosa').length}</span></div>${g.length ? g.slice().sort((a, b) => String(b.dataConsumo || '').localeCompare(String(a.dataConsumo || ''))).slice(0, 5).map(b => rowHtml(b)).join('') : '<div class="empty">Ancora nulla</div>'}</div>`;
 }
 
 /* ============ AVVISI ============ */
@@ -708,7 +775,7 @@ function viewAvvisi() {
   ${sec('Da bere presto', 'Sono nell\'ultima parte della finestra.', A.presto)}
   ${sec('In chiusura nei prossimi 2 anni', 'Ancora ok, ma pianifica quando berle.', A.chiude)}
   ${sec('Stanno per entrare in finestra', 'Per ora aspetta.', A.attesa, 'inizio')}
-  ${sec('Senza finestra di consumo', 'Compila inizio e fine finestra nella scheda.', A.manca)}
+  ${sec('Senza finestra di consumo', 'Compila inizio e fine finestra nella scheda.', A.manca)}${A.manca.length ? `<button class="btn sec2" data-act="rbatch" style="margin-top:10px">Ricerca guidata della finestra (${Math.min(8, A.manca.length)} bottiglie)</button>` : ''}
   ${sec('Senza posizione valida', 'Assegna un posto dalla scheda o dalla mappa.', A.pos)}
   ${sec('Bollicine senza data di sboccatura', 'Guarda la retro-etichetta e aggiungila nella scheda.', A.sboc)}
   <div class="note" style="margin-top:18px">Il numerino sulla campana si aggiorna ogni volta che apri l'app. Le notifiche push sul telefono richiedono un servizio esterno: le valuteremo nel passo online.</div>`;
@@ -720,7 +787,7 @@ function viewAltro() {
   const st = !navigator.onLine ? 'Offline: le modifiche si sincronizzano appena torna la rete' : syncInfo.pending ? 'Sincronizzazione in corso…' : 'Tutto sincronizzato';
   const lb = localStorage.getItem('cantinetta_lastBackup');
   return `<div class="sec" style="margin-top:4px"><h2>Altro</h2></div><div class="card menu" style="padding:2px 12px">
-  ${[['add','Aggiungi una bottiglia','Nuovo acquisto con posto suggerito'],['storico','Storico bevute','Bevute, regalate, perse'],['shelves','Ripiani e file','Capacità e file davanti/dietro'],['export','Salva backup','Scarica tutti i dati in un file'],['import','Importa dati o ripristina backup','Carica un file .json'],['info','Come si usa','Il ciclo di vita di una bottiglia'],['logout','Esci','Account: ' + ((curUser && curUser.email) || '')]].map(x => `<div class="row" data-act="${x[0]}"><div class="m"><b>${x[1]}</b><span>${esc(x[2])}</span></div>${ic('chev')}</div>`).join('')}</div>
+  ${[['add','Aggiungi una bottiglia','Nuovo acquisto con posto suggerito'],['storico','Storico bevute','Bevute, regalate, perse'],['shelves','Ripiani, livelli e file','Quante bottiglie ci stanno in ogni fila'],['export','Salva backup','Scarica tutti i dati in un file'],['import','Importa dati o ripristina backup','Carica un file .json'],['info','Come si usa','Il ciclo di vita di una bottiglia'],['logout','Esci','Account: ' + ((curUser && curUser.email) || '')]].map(x => `<div class="row" data-act="${x[0]}"><div class="m"><b>${x[1]}</b><span>${esc(x[2])}</span></div>${ic('chev')}</div>`).join('')}</div>
   <div class="note" style="margin-top:14px">${st}.<br>Ultimo backup: ${lb ? fmtDate(lb) : 'mai'}. Conserva ogni tanto un backup nel tuo OneDrive personale.</div>`;
 }
 function viewStorico() {
@@ -738,7 +805,7 @@ function windowBar(b) {
   <div class="wl"><span>${b.inizio}</span><span>${left >= 0 ? (left === 0 ? 'ultimo anno' : left + (left === 1 ? ' anno' : ' anni') + ' alla fine') : 'oltre di ' + (-left) + (left === -1 ? ' anno' : ' anni')}</span><span>${b.fine}</span></div></div>`;
 }
 function openSheet(h) { sheetId = null; $('#sheet').innerHTML = '<div class="grab"></div>' + h; $('#wrap').classList.add('open'); $('#sheet').scrollTop = 0; }
-function closeSheet() { sheetId = null; $('#wrap').classList.remove('open'); }
+function closeSheet() { sheetId = null; UI.fromList = false; $('#wrap').classList.remove('open'); }
 function openBottle(id) { openBottleBase(id); sheetId = id; extras(id); }
 function extras(id) {
   const b = getB(id); if (!b) return;
@@ -749,13 +816,14 @@ function openBottleBase(id) {
   const b = getB(id); if (!b) return;
   const ph = b.thumb, inCel = b.stato === 'In cantina', m = mat(b), tags = pairing(b), bl = blockers(b);
   const hero = ph ? `<div class="hero" style="background-image:url(${ph})"></div>` : `<div class="hero nop" style="background:linear-gradient(135deg,${TIPO_COL[b.tipo] || '#444'}cc,#1b1715)"></div>`;
-  openSheet(`${hero}
+  openSheet(`${UI.fromList ? '<button class="btn sec2" data-act="backList" style="margin-bottom:12px">‹ Torna all\'elenco</button>' : ''}${hero}
   <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><h2>${esc(title(b))}</h2><div class="sub" style="font-size:14px">${esc(b.produttore)} · ${vint(b)}</div></div>${inCel ? badge(m) : `<span class="bd" style="background:#444">${esc(b.stato)}</span>`}</div>
   <div class="sub" style="margin-top:8px">${[b.tipo, b.paese, b.regione, b.denominazione].filter(Boolean).map(esc).join(' · ')}</div>
   ${b.vitigni ? `<div class="sub">${esc(b.vitigni)}</div>` : ''}
-  ${inCel ? windowBar(b) : ''}
-  ${inCel ? `<div class="card" style="margin:14px 0"><div class="pin" style="margin:0">${ic('pin', 20)}<b>${validSlot(b) ? esc(slotLabel(b.piano, b.posto)) : 'Posizione non assegnata'}</b></div>
+  ${inCel ? windowBar(b) : ''}${b.aiWin ? aiCard(b.aiWin) : ''}
+  ${inCel ? `<div class="card" style="margin:14px 0"><div class="pin" style="margin:0">${ic('pin', 20)}<b>${validSlot(b) ? esc(slotLabel(b)) : 'Posizione non assegnata'}</b></div>
     ${validSlot(b) ? `<div class="sub" style="margin-top:8px">${orientHint(b)}</div>` : ''}
+    ${bl.length ? `<div class="sub" style="margin-top:8px;color:var(--warn)">Per prenderla togli prima: <b>${esc(bl.map(x => title(x) + ' (' + slotCode(x) + ')').join(', '))}</b></div>` : ''}
     <div class="btns"><button class="btn sec2" data-act="showmap" data-id="${id}">Mostra in mappa</button><button class="btn sec2" data-act="sposta" data-id="${id}">Sposta</button></div></div>` : ''}
   <div class="kv"><div><small>Prezzo</small>${b.prezzo ? eur(b.prezzo) : '—'}</div><div><small>Servizio</small>${serveTemp(b)}</div>
   ${isBolle(b.tipo) ? `<div><small>Sboccatura</small>${b.sboccatura ? fmtMonth(b.sboccatura) : '<span style="color:var(--warn)">da inserire</span>'}</div>` : ''}
@@ -782,25 +850,129 @@ function confirmDrink(id) {
   b.stato = f.get('stato'); b.dataConsumo = f.get('data') || todayISO();
   b.voto = (b.stato === 'Bevuta' && !f.get('novoto')) ? parseFloat(f.get('voto')) : null;
   b.note = (f.get('note') || '').trim() || null;
-  if (validSlot(b)) b.posPrec = b.piano + '-' + b.posto; b.piano = null; b.posto = null;
+  if (validSlot(b)) b.posPrec = slotCode(b); b.piano = null; b.liv = null; b.fila = null; b.pos = null; delete b.posto;
   save(); closeSheet(); toast('Registrata · posto liberato'); render();
 }
 function rimetti(id) {
   const b = getB(id), s = suggestSlot(b.tipo);
   b.stato = 'In cantina'; b.dataConsumo = null; b.voto = null;
-  if (s) { b.piano = s.piano; b.posto = s.posto; }
+  if (s) { b.piano = s.piano; b.liv = s.liv; b.fila = s.fila; b.pos = s.pos; delete b.posto; }
   save(); toast('Di nuovo in cantina'); render(); openBottle(id);
 }
 
 /* ============ FORM AGGIUNGI / MODIFICA ============ */
+/* ============ RICERCA GUIDATA DELLA FINESTRA ============ */
+const RS = { mode: 'form', items: [], ai: null, results: null };
+function srcLinks(f) { return (f || []).map(s => s.u ? `<a href="${esc(s.u)}" target="_blank" rel="noopener noreferrer" style="color:var(--gold)">${esc(s.t)}</a>` : esc(s.t)).join(' · '); }
+function aiCard(a) { return `<div class="card" style="margin:10px 0;background:var(--card2)"><div class="sub" style="margin:0 0 4px">Finestra da ricerca guidata · confidenza ${esc(a.conf || '?')}${a.at ? ' · ' + fmtDate(a.at) : ''}</div>${a.sintesi ? `<div class="note" style="color:var(--txt)">${esc(a.sintesi)}</div>` : ''}${a.punteggi && a.punteggi.length ? `<div class="why">${a.punteggi.map(p => `<span>${esc(p.f)}: ${esc(p.v)}</span>`).join('')}</div>` : ''}${a.fonti && a.fonti.length ? `<div class="note" style="margin-top:6px">Fonti: ${srcLinks(a.fonti)}</div>` : ''}</div>`; }
+function researchBoxHtml(mode, items) {
+  RS.mode = mode; RS.items = items || []; RS.results = null;
+  return `<div id="rbox"><div class="note">Costruisco una richiesta già pronta: la incolli in un assistente con ricerca web (consigliato Copilot con il tuo <b>account personale</b>, non quello di lavoro), poi incolli qui la risposta e leggo gli anni. Se puoi, attiva la modalità di ricerca approfondita.</div>
+  <div class="btns"><button type="button" class="btn sec2" data-act="rcopy">1 · Copia richiesta</button><a class="btn sec2" href="https://copilot.microsoft.com/" target="_blank" rel="noopener">2 · Apri Copilot</a></div>
+  <div class="note" style="margin-top:6px">Alternative: <a href="https://gemini.google.com/" target="_blank" rel="noopener" style="color:var(--gold)">Gemini</a> · <a href="https://chatgpt.com/" target="_blank" rel="noopener" style="color:var(--gold)">ChatGPT</a></div>
+  <div class="field" style="margin-top:10px"><label>3 · Incolla qui la risposta</label><textarea id="rtxt" rows="4" placeholder="Incolla la risposta intera: trovo da solo il blocco con i dati"></textarea></div>
+  <button type="button" class="btn sec2" data-act="rparse">Leggi la risposta</button><div id="rfall"></div><div id="rres"></div></div>`;
+}
+function formItem() {
+  const f = new FormData($('#frm')), g = k => (f.get(k) || '').toString().trim();
+  return [{ id: '1', vino: g('vino'), produttore: g('produttore'), annata: parseInt(g('annata')) || null, tipo: g('tipo'), paese: g('paese'), regione: g('regione'), denominazione: g('denominazione'), vitigni: g('vitigni'), sboccatura: g('sboccatura') }];
+}
+function researchPrompt(items) {
+  const lines = items.map((b, i) => `${i + 1}. id="${b.id}" · ${[b.produttore, b.vino].filter(Boolean).join(' – ')} · annata ${b.annata || 'NV'} · tipo ${b.tipo}${b.denominazione ? ' · ' + b.denominazione : ''}${b.regione ? ' · ' + b.regione : ''}${b.paese ? ' (' + b.paese + ')' : ''}${b.vitigni ? ' · vitigni: ' + b.vitigni : ''}${b.sboccatura ? ' · sboccatura ' + fmtMonth(b.sboccatura) : ''}`).join('\n');
+  return `Sei un sommelier e ricercatore di vino. Per ciascuna bottiglia elencata cerca sul web informazioni verificabili per stabilire la finestra di consumo ottimale, cioè l'anno di inizio e l'anno di fine in cui berla al meglio.
+
+Cerca, per QUELLA annata:
+- scheda tecnica e indicazioni di consumo del produttore;
+- recensioni e punteggi dei critici (per esempio Vinous, Wine Advocate, Decanter, Wine Spectator, James Suckling, Jancis Robinson, Gambero Rosso, Doctor Wine, Bibenda);
+- finestre di consumo su CellarTracker e simili, andamento dell'annata e potenziale di invecchiamento della denominazione.
+
+Regole: non inventare punteggi né fonti. Se non trovi dati per quella annata specifica, dillo e ragiona su denominazione, produttore e annata con confidenza "bassa". Gli anni sono anni solari e la finestra include sia l'anno di inizio sia quello di fine. Per le bollicine tieni conto anche della sboccatura.
+
+Bottiglie:
+${lines}
+
+Rispondi in italiano. Alla fine inserisci un unico blocco di codice JSON con un elemento per bottiglia, in questo formato:
+\`\`\`json
+[{"id":"…","inizio":2028,"fine":2038,"confidenza":"alta|media|bassa","sintesi":"massimo 3 frasi sul perché","punteggi":[{"fonte":"…","voto":"…"}],"fonti":[{"titolo":"…","url":"https://…"}]}]
+\`\`\``;
+}
+async function copyText(t) {
+  try { await navigator.clipboard.writeText(t); return true; }
+  catch (e) { try { const ta = document.createElement('textarea'); ta.value = t; ta.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(ta); ta.select(); const ok = document.execCommand('copy'); ta.remove(); return ok; } catch (e2) { return false; } }
+}
+function parseResearch(txt) {
+  const cands = [], m = /```(?:json)?\s*([\s\S]*?)```/i.exec(txt); if (m) cands.push(m[1]); cands.push(txt);
+  for (const c of cands) {
+    const s0 = c.trim(), tries = [s0], a = s0.indexOf('['), b = s0.lastIndexOf(']'), o = s0.indexOf('{'), p = s0.lastIndexOf('}');
+    if (a >= 0 && b > a) tries.push(s0.slice(a, b + 1)); if (o >= 0 && p > o) tries.push(s0.slice(o, p + 1));
+    for (const s of tries) { try { const j = JSON.parse(s), arr = Array.isArray(j) ? j : [j]; if (arr.length && arr.every(x => x && typeof x === 'object')) return arr; } catch (e) {} }
+  }
+  return null;
+}
+function normRes(r, b) {
+  const yr = v => { const n = parseInt(v); return n >= 1900 && n <= 2200 ? n : null; }, cf = String(r.confidenza || '').toLowerCase();
+  const o = { id: String(r.id == null ? '' : r.id), inizio: yr(r.inizio), fine: yr(r.fine), conf: ['alta', 'media', 'bassa'].includes(cf) ? cf : 'bassa', sintesi: String(r.sintesi || '').slice(0, 600),
+    punteggi: (Array.isArray(r.punteggi) ? r.punteggi : []).slice(0, 6).filter(p => p && typeof p === 'object').map(p => ({ f: String(p.fonte || '').slice(0, 60), v: String(p.voto == null ? '' : p.voto).slice(0, 20) })).filter(p => p.f),
+    fonti: (Array.isArray(r.fonti) ? r.fonti : []).slice(0, 6).filter(s => s && typeof s === 'object').map(s => ({ t: String(s.titolo || s.url || '').slice(0, 90), u: /^https?:\/\//i.test(String(s.url || '')) ? String(s.url).slice(0, 300) : '' })).filter(s => s.t), warn: [] };
+  if (o.inizio && o.fine) {
+    if (o.inizio > o.fine) o.warn.push('Anno di inizio dopo quello di fine: non uso questi dati.');
+    if (b && b.annata && o.inizio < b.annata) o.warn.push('L\'inizio è prima dell\'annata: controlla.');
+    if (o.fine - o.inizio > 60) o.warn.push('Finestra molto lunga: controlla.');
+  }
+  return o;
+}
+function resCard(r, b, i) {
+  const bad = !r.inizio || !r.fine || r.inizio > r.fine, col = { alta: '#4fa84a', media: '#e8a928', bassa: '#d1453b' }[r.conf];
+  return `<div class="card" style="margin-top:10px;background:var(--card2)"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><b>${esc(b ? title(b) + ' ' + vint(b) : r.id)}</b><span class="bd" style="background:${col};color:#12100f">confidenza ${r.conf}</span></div>
+  <div style="font-family:Georgia,serif;font-size:24px;color:var(--gold);margin:6px 0">${bad ? 'Anni non validi' : r.inizio + ' – ' + r.fine}</div>
+  ${r.sintesi ? `<div class="note" style="color:var(--txt)">${esc(r.sintesi)}</div>` : ''}
+  ${r.punteggi.length ? `<div class="why">${r.punteggi.map(p => `<span>${esc(p.f)}: ${esc(p.v)}</span>`).join('')}</div>` : ''}
+  ${r.fonti.length ? `<div class="note" style="margin-top:8px">Fonti: ${srcLinks(r.fonti)}</div>` : '<div class="note" style="margin-top:8px;color:var(--warn)">Nessuna fonte indicata: verifica prima di fidarti.</div>'}
+  ${r.warn.map(w => `<div class="note" style="color:var(--warn)">⚠ ${esc(w)}</div>`).join('')}
+  ${bad ? '' : RS.mode === 'form' ? `<button type="button" class="btn" data-act="ruse" data-i="${i}" style="margin-top:10px">Usa questi anni</button>` : `<label style="display:flex;gap:8px;align-items:center;margin-top:10px;color:var(--txt)"><input type="checkbox" data-r="${i}" checked style="width:20px;height:20px">Applica a questa bottiglia</label>`}</div>`;
+}
+async function doRCopy() {
+  const items = RS.mode === 'form' ? formItem() : RS.items;
+  if (RS.mode === 'form' && !items[0].vino && !items[0].produttore) { toast('Compila prima vino e produttore'); return; }
+  const p = researchPrompt(items), ok = await copyText(p);
+  $('#rfall').innerHTML = ok ? '' : `<div class="field" style="margin-top:8px"><label>Copia questo testo a mano</label><textarea rows="5" readonly onfocus="this.select()">${esc(p)}</textarea></div>`;
+  toast(ok ? 'Richiesta copiata: incollala nell\'assistente' : 'Copia il testo qui sotto');
+}
+function doRParse() {
+  const txt = ($('#rtxt') || {}).value || '', arr = parseResearch(txt);
+  if (!arr) { $('#rres').innerHTML = '<div class="err">Non trovo il blocco con i dati. Chiedi all\'assistente: «rispondi di nuovo con il solo blocco JSON».</div>'; return; }
+  const items = RS.mode === 'form' ? formItem() : RS.items;
+  RS.results = arr.map((r, i) => { const b = RS.mode === 'form' ? items[0] : (items.find(x => String(x.id) === String(r.id)) || items[i]); return { r: normRes(r, b), b }; });
+  if (RS.mode === 'form') RS.results = RS.results.slice(0, 1);
+  $('#rres').innerHTML = RS.results.map((x, i) => resCard(x.r, x.b, i)).join('') + (RS.mode === 'batch' ? '<button type="button" class="btn" data-act="rapply" style="margin-top:12px">Applica le selezionate</button>' : '');
+}
+function doRUse(i) {
+  const x = RS.results && RS.results[i]; if (!x) return; const r = x.r;
+  $('#frm [name=inizio]').value = r.inizio; $('#frm [name=fine]').value = r.fine;
+  RS.ai = { inizio: r.inizio, fine: r.fine, conf: r.conf, sintesi: r.sintesi, punteggi: r.punteggi, fonti: r.fonti, at: todayISO() };
+  toast('Anni inseriti: ricordati di salvare');
+}
+function doRApply() {
+  let n = 0;
+  (RS.results || []).forEach((x, i) => { const cb = document.querySelector('input[data-r="' + i + '"]'); if (!cb || !cb.checked || !x.r.inizio || !x.r.fine || x.r.inizio > x.r.fine || !x.b) return; const b = getB(x.b.id); if (!b) return; b.inizio = x.r.inizio; b.fine = x.r.fine; b.aiWin = { inizio: x.r.inizio, fine: x.r.fine, conf: x.r.conf, sintesi: x.r.sintesi, punteggi: x.r.punteggi, fonti: x.r.fonti, at: todayISO() }; n++; });
+  save(); closeSheet(); toast(n + (n === 1 ? ' finestra aggiornata' : ' finestre aggiornate')); render();
+}
+function openResearchBatch() {
+  const items = alertsData().manca.slice(0, 8);
+  openSheet(`<h2>Ricerca guidata</h2><div class="sub" style="margin:3px 0 10px">${items.length} ${items.length === 1 ? 'bottiglia' : 'bottiglie'} senza finestra di consumo</div><div class="card" style="padding:4px 12px;margin-bottom:12px">${items.map(b => `<div class="row" style="cursor:default">${thumb(b)}<div class="m"><b>${esc(title(b))}</b><span>${esc(b.produttore)} · ${vint(b)}</span></div></div>`).join('')}</div>${researchBoxHtml('batch', items)}`);
+}
+
+
 function posOptions(b, preset) {
-  const free = freeSlots(); const cur = b && validSlot(b) && b.stato === 'In cantina' ? { piano: b.piano, posto: b.posto } : null;
-  let all = free.slice(); if (cur) all.unshift(cur);
-  const sel = cur ? cur.piano + '-' + cur.posto : (preset ? preset.piano + '-' + preset.posto : (suggestSlot((b && b.tipo) || 'Rosso') ? (s => s.piano + '-' + s.posto)(suggestSlot((b && b.tipo) || 'Rosso')) : ''));
-  all.sort((x, y) => x.piano - y.piano || x.posto - y.posto);
-  return `<option value="">Nessuna (decido dopo)</option>` + all.map(s => { const v = s.piano + '-' + s.posto; return `<option value="${v}" ${v === sel ? 'selected' : ''}>${esc(slotLabel(s.piano, s.posto))}</option>`; }).join('');
+  const cur = b && validSlot(b) && b.stato === 'In cantina' ? { piano: b.piano, liv: b.liv, fila: b.fila, pos: b.pos } : null;
+  const all = freeSlots(); if (cur) all.push(cur);
+  const sg = suggestSlot((b && b.tipo) || 'Rosso'), sel = cur ? keyOf(cur) : preset ? keyOf(preset) : sg ? keyOf(sg) : '';
+  const groups = {};
+  all.sort((x, y) => x.piano - y.piano || (x.liv === y.liv ? 0 : x.liv === 'B' ? -1 : 1) || (x.fila === y.fila ? 0 : x.fila === 'R' ? -1 : 1) || x.pos - y.pos).forEach(s => { const g = s.piano + s.liv + s.fila; (groups[g] = groups[g] || []).push(s); });
+  return `<option value="">Nessuna (decido dopo)</option>` + Object.values(groups).map(arr => { const s0 = arr[0], sh = shelf(s0.piano); return `<optgroup label="${esc(shelfName(s0.piano) + (sh.lv.length > 1 ? ' · livello ' + LVN[s0.liv] : '') + ' · fila ' + FILAN[s0.fila] + (s0.fila === 'P' ? ' (fondo allo sportello)' : ' (fondo al retro)'))}">` + arr.map(s => `<option value="${keyOf(s)}" ${keyOf(s) === sel ? 'selected' : ''}>${keyOf(s)} · ${s.pos}ª da sinistra</option>`).join('') + '</optgroup>'; }).join('');
 }
 function openForm(id, preset) {
+  RS.ai = null;
   const b = id ? getB(id) : { tipo: 'Rosso', paese: 'Italia', stato: 'In cantina' };
   const regs = [...new Set(S.bottles.map(x => x.regione).filter(Boolean))].sort(), paesi = [...new Set(S.bottles.map(x => x.paese).filter(Boolean).concat(['Italia','Francia','Spagna','Germania','Austria','Portogallo']))].sort();
   const F = (l, n, v, extra) => `<div class="field"><label>${l}</label><input name="${n}" value="${esc(v ?? '')}" ${extra || ''}></div>`;
@@ -812,6 +984,7 @@ function openForm(id, preset) {
   ${F('Denominazione', 'denominazione', b.denominazione)}${F('Vitigni (separati da virgola)', 'vitigni', b.vitigni)}
   <div class="g2">${F('Prezzo (€)', 'prezzo', b.prezzo, 'inputmode="decimal"')}${F('Sboccatura (solo bollicine)', 'sboccatura', b.sboccatura ? String(b.sboccatura).slice(0, 7) : '', 'type="month"')}</div>
   <div class="g2">${F('Finestra: da anno', 'inizio', b.inizio, 'inputmode="numeric"')}${F('Finestra: a anno', 'fine', b.fine, 'inputmode="numeric"')}</div>
+  <details class="rsd"><summary>Non conosci la finestra? Ricerca guidata</summary>${researchBoxHtml('form')}</details>
   ${F('Data acquisto', 'dataAcquisto', b.dataAcquisto || (id ? '' : todayISO()), 'type="date"')}
   ${(b.stato === 'In cantina') ? `<div class="field"><label>Posizione</label><select name="pos" id="posSel" ${id ? '' : 'data-new="1"'}>${posOptions(id ? b : null, preset)}</select></div>` : ''}
   <div class="field"><label>Note</label><textarea name="note" rows="2">${esc(b.note || '')}</textarea></div>
@@ -829,9 +1002,11 @@ async function saveForm(id) {
   Object.assign(b, { vino: g('vino'), produttore: g('produttore'), annata: n('annata'), tipo: g('tipo'), paese: g('paese') || null, regione: g('regione') || null, denominazione: g('denominazione') || null,
     vitigni: g('vitigni') || null, prezzo: n('prezzo'), sboccatura: g('sboccatura') ? g('sboccatura') + '-01' : null, inizio: n('inizio'), fine: n('fine'), dataAcquisto: g('dataAcquisto') || null, note: g('note') || null });
   if (b.annata != null) b.annata = Math.round(b.annata);
+  if (RS.ai && RS.ai.inizio === b.inizio && RS.ai.fine === b.fine) b.aiWin = RS.ai; else if (b.aiWin && (b.aiWin.inizio !== b.inizio || b.aiWin.fine !== b.fine)) delete b.aiWin;
   if (b.stato === 'In cantina') {
     const pos = g('pos');
-    if (pos) { const [p, s] = pos.split('-').map(Number); b.piano = p; b.posto = s; } else { b.piano = null; b.posto = null; }
+    const sl = parseKey(pos); if (sl) { b.piano = sl.piano; b.liv = sl.liv; b.fila = sl.fila; b.pos = sl.pos; } else { b.piano = null; b.liv = null; b.fila = null; b.pos = null; }
+    delete b.posto;
   }
   if (!id) S.bottles.push(b);
   const file = f.get('foto'); if (file && file.size) { try { await setPhotoFor(b, file); } catch (e) { toast('Foto non letta'); } }
@@ -841,27 +1016,31 @@ async function saveForm(id) {
 /* ============ AZIONI ============ */
 function toast(t) { const e = $('#toast'); e.textContent = t; e.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => e.classList.remove('on'), 2200); }
 let fotoFor = null;
-function slotTap(s, p) {
-  const { occ } = occupancy(), b = occ[s + '-' + p];
+function slotTap(k) {
+  const sl = parseKey(k); if (!sl) return; const { occ } = occupancy(), b = occ[k];
   if (UI.moving) {
     const m = getB(UI.moving);
-    if (!b) { m.piano = s; m.posto = p; UI.moving = null; save(); toast('Spostata: ' + slotShort(s, p)); render(); return; }
+    if (!b) { Object.assign(m, sl); delete m.posto; UI.moving = null; save(); toast('Spostata: ' + k); render(); return; }
     if (b === m) { UI.moving = null; render(); return; }
-    if (confirm('Scambiare il posto con ' + title(b) + '?')) { const a = [m.piano, m.posto]; m.piano = s; m.posto = p; b.piano = a[0]; b.posto = a[1]; UI.moving = null; save(); toast('Scambiate'); render(); }
+    if (confirm('Scambiare il posto con ' + title(b) + '?')) { const a = { piano: m.piano, liv: m.liv, fila: m.fila, pos: m.pos }; Object.assign(m, sl); Object.assign(b, a); UI.moving = null; save(); toast('Scambiate'); render(); }
     return;
   }
-  if (b) openBottle(b.id); else openForm(null, { piano: s, posto: p });
+  if (b) { UI.fromList = false; openBottle(b.id); } else openForm(null, sl);
 }
 function openShelves(first) {
-  const g = s => first ? (s.n === 3 ? { p: 6, r: 0 } : s.n === 6 ? { p: 3, r: 3 } : s) : s;
-  openSheet(`<h2>Ripiani e file</h2><div class="note" style="margin:8px 0 14px">${first ? '<b>Nuova mappa.</b> Ho precompilato i numeri in base a quanto mi hai detto (ripiano 3 a una fila, gli altri a due): <b>controllali e correggili</b>. ' : ''}Per ogni ripiano indica quante bottiglie ci stanno in ciascuna fila. <b>P</b> = fila col fondo verso la porta, <b>R</b> = fila col fondo verso il retro. Se il ripiano ha una sola fila, metti 0 nell'altra. Le bottiglie che non trovano più posto finiscono in «Da riposizionare», non si cancellano.</div><form id="shf">
-  ${S.shelves.map(s => { const v = g(s); return `<div class="g2" style="margin-bottom:10px"><div class="field" style="margin:0"><label>${shelfName(s.n)} · fila P</label><input name="p${s.n}" type="number" inputmode="numeric" min="0" max="20" value="${v.p}"></div><div class="field" style="margin:0"><label>fila R</label><input name="r${s.n}" type="number" inputmode="numeric" min="0" max="20" value="${v.r}"></div></div>`; }).join('')}
+  const row = (s, k) => { const l = s.lv[k === 'B' ? 0 : 1] || { p: 0, r: 0 }; return `<div class="g2" style="margin-top:8px"><div class="field" style="margin:0"><label>Livello ${LVN[k]} · fila P</label><input name="p${s.n}${k}" type="number" inputmode="numeric" min="0" max="10" value="${l.p}"></div><div class="field" style="margin:0"><label>Livello ${LVN[k]} · fila R</label><input name="r${s.n}${k}" type="number" inputmode="numeric" min="0" max="10" value="${l.r}"></div></div>`; };
+  openSheet(`<h2>Ripiani, livelli e file</h2><div class="note" style="margin:8px 0 14px">${first ? '<b>Nuova struttura.</b> Ho precompilato 3 bottiglie per fila: <b>controlla e correggi</b> i numeri con quelli reali. ' : ''}Per ogni ripiano indica quante bottiglie ci stanno in ogni fila di ogni livello. <b>R</b> = fila col fondo verso il retro, <b>P</b> = fila col fondo verso lo sportello. Il livello alto è il secondo strato appoggiato sopra il basso: mettilo a 0 e 0 se il ripiano ha un solo strato. Le bottiglie che non trovano più posto finiscono in «Da riposizionare».</div><form id="shf">
+  ${S.shelves.map(s => `<div class="card" style="margin-bottom:10px"><b>${shelfName(s.n)}</b>${row(s, 'B')}${row(s, 'A')}</div>`).join('')}
   <button type="button" class="btn" data-act="saveShelves">Salva</button></form>`);
 }
 function saveShelves() {
-  const f = new FormData($('#shf')), n = k => Math.max(0, Math.min(20, parseInt(f.get(k)) || 0));
-  S.shelves = S.shelves.map(s => ({ n: s.n, p: n('p' + s.n), r: n('r' + s.n) }));
-  save(); closeSheet(); toast('Ripiani aggiornati'); render();
+  const f = new FormData($('#shf')), n = k => Math.max(0, Math.min(10, parseInt(f.get(k)) || 0)), out = [];
+  for (const s of S.shelves) {
+    const B = { p: n('p' + s.n + 'B'), r: n('r' + s.n + 'B') }, A = { p: n('p' + s.n + 'A'), r: n('r' + s.n + 'A') };
+    if (B.p + B.r === 0 && A.p + A.r > 0) { toast('Ripiano ' + s.n + ': compila prima il livello basso'); return; }
+    out.push({ n: s.n, lv: A.p + A.r > 0 ? [B, A] : [B] });
+  }
+  S.shelves = out; save(); closeSheet(); toast('Ripiani aggiornati'); render();
 }
 async function doExport() {
   toast('Preparo il backup…'); let photos = {};
@@ -875,19 +1054,23 @@ async function doImport(file) {
   if (!confirm('Importare ' + st.bottles.length + ' bottiglie? Sostituiscono i dati attuali.')) return;
   suppressEvents = true;
   try {
-    S.bottles = st.bottles.map(clean); S.shelves = normSh(clean(st.shelves));
+    const cv = convShelves(clean(st.shelves)); S.bottles = st.bottles.map(clean); S.shelves = cv.shelves; convBottles(S.bottles, cv.old, S.shelves);
     for (const [id, p] of Object.entries(st.photos || {})) { const b = getB(id); if (!b || !p) continue; Cloud.setPhoto(id, p).catch(onErr); try { b.thumb = await shrink(p, 110, .7); } catch (e) {} }
     save();
   } finally { suppressEvents = false; }
   toast('Dati importati'); render();
 }
 function openInfo() {
-  openSheet(`<h2>Il ciclo di vita</h2><div class="note" style="color:var(--txt);margin-top:10px;line-height:1.65">
-  <b>Acquisto</b>: tasto + in basso a destra. Compili i dati, scegli il posto suggerito, salvi.<br>
-  <b>Vita in cantina</b>: dalla scheda puoi spostare la bottiglia, aggiornare la finestra, aggiungere la foto dell'etichetta.<br>
-  <b>Stappata</b>: dalla scheda, «L'abbiamo stappata», con voto da 0 a 10 e note. Il posto si libera da solo.<br>
-  <b>Regalata o persa</b>: stessa procedura, scegli lo stato.<br>
-  <b>Storia</b>: ogni scheda mostra data di acquisto, posti, spostamenti e consumo.</div>
+  openSheet(`<h2>Come si usa</h2><div class="note" style="color:var(--txt);margin-top:10px;line-height:1.65">
+  <b>Acquisto</b>: tasto + in basso a destra. Il posto suggerito riempie prima il livello basso e la fila R, poi la P.<br>
+  <b>Stappata, regalata, persa</b>: dalla scheda. Il posto si libera da solo.<br>
+  <b>Spostare</b>: scheda › Sposta, poi tocca il nuovo posto nella vista «Dall'alto».<br>
+  <b>Statistiche</b>: tocca una barra o un numero per vedere le bottiglie; da lì puoi evidenziarle in mappa.</div>
+  <div class="lbl">Come si numerano le bottiglie</div><div class="note" style="color:var(--txt);line-height:1.65">Codice = <b>ripiano + livello + fila + numero</b>, per esempio <b>4A-P3</b>.<br>
+  <b>Livello</b>: B = basso, A = alto (secondo strato appoggiato sopra).<br>
+  <b>Fila</b>: P = fondo verso lo sportello, R = fondo verso il retro.<br>
+  <b>Numero</b>: da sinistra a destra guardando dallo sportello.<br>
+  Il codice non cambia quando altre bottiglie entrano o escono, ma solo se sposti fisicamente quella bottiglia.</div>
   <div class="lbl">Ogni tanto</div><div class="note">Altro › Salva backup e conserva il file nel tuo OneDrive personale.</div>`);
 }
 
@@ -896,7 +1079,14 @@ const ACT = {
   set: el => { UI[el.dataset.k] = el.dataset.v; if (['occ','pTipo','dish'].includes(el.dataset.k)) UI.offset = 0; render(); },
   mode: el => { UI.mapMode = { 'Tipo':'tipo','Maturità':'mat','Paese':'paese','Prezzo':'prezzo' }[el.dataset.v]; render(); },
   more: () => { UI.offset++; render(); },
-  open: el => openBottle(el.dataset.id),
+  open: el => { UI.fromList = false; openBottle(el.dataset.id); },
+  openL: el => { UI.fromList = true; openBottle(el.dataset.id); },
+  stat: el => openStat(el.dataset.k, el.dataset.v),
+  backList: () => { UI.fromList = false; if (UI.listCtx) openStat(UI.listCtx.k, UI.listCtx.v); },
+  listmap: () => { const { t, l } = statSel(UI.listCtx.k, UI.listCtx.v); UI.mapIds = l.map(b => b.id); UI.mapTitle = t; UI.mapQ = ''; UI.mapView = '3d'; UI.tab = 'mappa'; closeSheet(); render(); window.scrollTo(0, 0); },
+  clearIds: () => { UI.mapIds = null; render(); },
+  lvsel: el => { UI.mapLv = el.dataset.v; render(); },
+  rcopy: doRCopy, rparse: doRParse, ruse: el => doRUse(+el.dataset.i), rapply: doRApply, rbatch: openResearchBatch,
   closeSheet: closeSheet,
   add: () => openForm(null),
   edit: el => openForm(el.dataset.id),
@@ -905,16 +1095,16 @@ const ACT = {
   rimetti: el => rimetti(el.dataset.id),
   saveForm: el => saveForm(el.dataset.id),
   delBottle: el => { if (confirm('Eliminare questa bottiglia dai dati? Non si può annullare.')) { S.bottles = S.bottles.filter(b => b.id !== el.dataset.id); save(); closeSheet(); toast('Eliminata'); render(); } },
-  sposta: el => { const b = getB(el.dataset.id); UI.moving = el.dataset.id; UI.tab = 'mappa'; UI.mapView = 'alto'; if (b && validSlot(b)) UI.mapShelf = b.piano; closeSheet(); render(); },
+  sposta: el => { const b = getB(el.dataset.id); UI.moving = el.dataset.id; UI.tab = 'mappa'; UI.mapView = 'alto'; UI.mapIds = null; if (b && validSlot(b)) { UI.mapShelf = b.piano; UI.mapLv = b.liv; } closeSheet(); render(); },
   mview: el => { UI.mapView = el.dataset.v === '3D' ? '3d' : 'alto'; render(); },
-  shelfsel: el => { UI.mapShelf = +el.dataset.v; render(); },
+  shelfsel: el => { UI.mapShelf = +el.dataset.v; const s = shelf(UI.mapShelf); UI.mapLv = s && s.lv.length > 1 ? 'A' : 'B'; render(); },
   v3: el => { const v = el.dataset.v; V3.yaw = v === 'tq' ? .5 : 0; V3.pitch = v === 'front' ? .06 : v === 'side' ? .12 : .42; if (v === 'side') V3.yaw = 1.2; V3.zoom = 1; schedule3D(); },
   cancelMove: () => { UI.moving = null; render(); },
-  showmap: el => { const b = getB(el.dataset.id); UI.mapQ = title(b) + ' ' + (b.annata || ''); if (validSlot(b)) UI.mapShelf = b.piano; UI.tab = 'mappa'; closeSheet(); render(); },
-  slot: el => slotTap(+el.dataset.s, +el.dataset.p),
+  showmap: el => { const b = getB(el.dataset.id); UI.mapQ = title(b) + ' ' + (b.annata || ''); if (validSlot(b)) { UI.mapShelf = b.piano; UI.mapLv = b.liv; } UI.mapIds = null; UI.tab = 'mappa'; closeSheet(); render(); },
+  slot: el => slotTap(el.dataset.k),
   foto: el => { fotoFor = el.dataset.id; $('#fileFoto').click(); },
   storico: () => { UI.tab = 'storico'; render(); },
-  shelves: openShelves, saveShelves: saveShelves, export: doExport, info: openInfo,
+  shelves: () => openShelves(false), saveShelves: saveShelves, export: doExport, info: openInfo,
   import: () => $('#fileImp').click(),
   logout: () => { if (confirm('Uscire dall\'account?')) { closeSheet(); Cloud.logout(); } }
 };
@@ -937,13 +1127,13 @@ function bindEvents() {
   document.addEventListener('input', e => {
     const k = e.target.dataset && e.target.dataset.bind;
     if (k === 'q') { UI.q = e.target.value; renderRes(); }
-    else if (k === 'mapQ') { UI.mapQ = e.target.value; renderCab(); }
+    else if (k === 'mapQ') { UI.mapQ = e.target.value; if (UI.mapIds) { UI.mapIds = null; const bn = document.querySelector('#idban'); if (bn) bn.remove(); } renderCab(); }
   });
   document.addEventListener('change', e => {
     const k = e.target.dataset && e.target.dataset.bind;
     if (k === 'sort') { UI.sort = e.target.value; renderRes(); }
     else if (k === 'gone') { UI.gone = e.target.checked; render(); }
-    else if (k === 'ftipo') { const sel = $('#posSel'); if (sel && sel.dataset.new) { const s = suggestSlot(e.target.value); if (s) sel.value = s.piano + '-' + s.posto; } }
+    else if (k === 'ftipo') { const sel = $('#posSel'); if (sel && sel.dataset.new) { const s = suggestSlot(e.target.value); if (s) sel.value = keyOf(s); } }
   });
   document.addEventListener('submit', e => { if (e.target.id === 'lf') { e.preventDefault(); doLogin(); } });
   window.addEventListener('resize', () => { if (UI.tab === 'mappa' && UI.mapView === '3d') schedule3D(); }); window.addEventListener('online', () => renderHeader()); window.addEventListener('offline', () => renderHeader());
